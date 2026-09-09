@@ -197,7 +197,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         String lang = user.getLanguage();
 
         // Обработка команды /reply для админа
-        if (text.startsWith("/reply ") && chatId.equals(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID)) {
+        if (text.startsWith("/reply ") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
             String rest = text.substring(7).trim();
             int spaceIdx = rest.indexOf(' ');
             if (spaceIdx > 0) {
