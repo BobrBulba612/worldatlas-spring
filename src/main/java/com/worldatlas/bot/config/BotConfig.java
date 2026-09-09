@@ -59,4 +59,8 @@ public class BotConfig {
         }
         return botInstance;
     }
+
+    public WorldAtlasBot getBot() {
+        return botInstance;
+    }
 }
