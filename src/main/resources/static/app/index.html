@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#1c1c2e;--card:#262640;--text:#ffffff;--hint:#8a8aa3;--accent:#5b8def;--danger:#e05b5b;--ok:#4fc379}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{background:var(--bg);color:var(--text);padding-bottom:20px}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;position:sticky;top:0;background:var(--bg);z-index:10}
+header h1{font-size:18px}
+.lang-btn{background:var(--card);border:none;color:var(--accent);padding:6px 12px;border-radius:16px;font-weight:600;cursor:pointer}
+.tabs{display:flex;justify-content:space-around;padding:8px 4px;position:sticky;top:50px;background:var(--bg);z-index:10;border-bottom:1px solid var(--card)}
+.tab{background:none;border:none;color:var(--hint);font-size:11px;cursor:pointer;padding:6px 8px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tab .ico{font-size:20px}
+.tab.active{color:var(--accent);background:var(--card)}
+.page{display:none;padding:14px}
+.page.active{display:block}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px}
+.card .name{font-size:14px;color:var(--hint)}
+.card .time{font-size:32px;font-weight:700;margin:4px 0}
+.card .date{font-size:12px;color:var(--hint)}
+.card .tag{font-size:10px;background:var(--accent);color:#fff;border-radius:8px;padding:2px 8px;margin-left:6px}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.row label{font-size:13px;color:var(--hint);min-width:70px}
+input,select{flex:1;background:var(--bg);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;font-size:14px}
+button.btn{width:100%;background:var(--accent);border:none;color:#fff;padding:12px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px}
+button.btn.danger{background:var(--danger)}
+button.pick{flex:1;background:var(--bg);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;text-align:left;cursor:pointer;font-size:14px}
+h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
+.list-item{display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:12px;padding:10px 12px;margin-bottom:6px;font-size:14px}
+.list-item .acts{display:flex;gap:6px}
+.icon-btn{background:none;border:none;font-size:18px;cursor:pointer;padding:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{background:var(--bg);border:1px solid var(--card);color:var(--hint);padding:6px 12px;border-radius:14px;font-size:12px;cursor:pointer}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.result-box{background:var(--card);border-radius:14px;padding:16px;text-align:center;margin-top:10px}
+.result-box .big{font-size:28px;font-weight:700;color:var(--ok)}
+.result-box .sub{font-size:13px;color:var(--hint);margin-top:4px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;flex-direction:column;padding:14px}
+.modal.hidden{display:none}
+.modal .results{flex:1;overflow-y:auto;margin-top:10px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:200;display:none}
+.empty{color:var(--hint);font-size:13px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<header><h1 id="title">🌍 World Time Map</h1><button class="lang-btn" id="langBtn">EN</button></header>
+<nav class="tabs">
+<button class="tab active" data-tab="clocks"><span class="ico">🌍</span><span data-i18n="tab_clocks"></span></button>
+<button class="tab" data-tab="convert"><span class="ico">🔁</span><span data-i18n="tab_convert"></span></button>
+<button class="tab" data-tab="reminders"><span class="ico">⏰</span><span data-i18n="tab_reminders"></span></button>
+<button class="tab" data-tab="cities"><span class="ico">⭐</span><span data-i18n="tab_cities"></span></button>
+<button class="tab" data-tab="settings"><span class="ico">⚙️</span><span data-i18n="tab_settings"></span></button>
+</nav>
+<main>
+<section id="page-clocks" class="page active"><div id="clocksList"></div></section>
+
+<section id="page-convert" class="page">
+<h3 data-i18n="convert_title"></h3>
+<div class="row"><label data-i18n="from"></label><button class="pick" id="convFrom"></button></div>
+<div class="row"><label data-i18n="to"></label><button class="pick" id="convTo"></button></div>
+<div class="row"><label data-i18n="datetime"></label><input type="datetime-local" id="convDate"></div>
+<div class="result-box"><div class="big" id="convResult">—</div><div class="sub" id="convDiff"></div></div>
+</section>
+
+<section id="page-reminders" class="page">
+<div id="reminderBox"></div>
+<h3 data-i18n="create_remind"></h3>
+<div class="row"><label data-i18n="city"></label><button class="pick" id="remCity"></button></div>
+<div class="row"><label data-i18n="time"></label><input type="time" id="remTime"></div>
+<div class="row"><label data-i18n="text"></label><input type="text" id="remText" maxlength="200"></div>
+<div class="chips" id="remDays"></div>
+<button class="btn" id="remSave" data-i18n="save"></button>
+</section>
+
+<section id="page-cities" class="page">
+<input type="text" id="searchInput" data-i18n-ph="search_ph">
+<div id="searchResults"></div>
+<h3 data-i18n="favorites"></h3><div id="favList"></div>
+<h3 data-i18n="custom"></h3><div id="customList"></div>
+<h3 data-i18n="create_custom"></h3>
+<div class="row"><label data-i18n="city_name"></label><input type="text" id="custName" maxlength="30"></div>
+<div class="row"><label data-i18n="timezone"></label><button class="pick" id="custTz"></button></div>
+<button class="btn" id="custSave" data-i18n="save"></button>
+</section>
+
+<section id="page-settings" class="page">
+<div class="row"><label data-i18n="language"></label><select id="setLang"><option value="ru">Русский</option><option value="en">English</option></select></div>
+<div class="row"><label data-i18n="time_format"></label><select id="setFormat"><option value="24">24h</option><option value="12">12h</option></select></div>
+<div class="row"><label data-i18n="home"></label><button class="pick" id="setHome"></button></div>
+<button class="btn" id="setSave" data-i18n="save"></button>
+</section>
+</main>
+
+<div class="modal hidden" id="picker">
+<input type="text" id="pickerSearch" data-i18n-ph="search_ph">
+<div class="results" id="pickerResults"></div>
+<button class="btn danger" id="pickerClose" data-i18n="cancel"></button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const I18N={
+ru:{tab_clocks:'Часы',tab_convert:'Конвертер',tab_reminders:'Напоминалки',tab_cities:'Города',tab_settings:'Настройки',
+home:'Домашний',favorites:'Избранные города',custom:'Мои города',search_ph:'Поиск города...',no_results:'Ничего не найдено',
+not_set:'не задан',convert_title:'Конвертер времени',from:'Откуда',to:'Куда',datetime:'Время',create_remind:'Создать напоминалку',
+city:'Город',time:'Время',text:'Текст',save:'Сохранить',cancel:'Закрыть',create_custom:'Создать свой город',city_name:'Название',
+timezone:'Часовой пояс',language:'Язык',time_format:'Формат',reminder_saved:'Напоминалка сохранена!',reminder_deleted:'Напоминалка удалена',
+custom_created:'Город создан!',custom_deleted:'Город удалён',settings_saved:'Сохранено!',added:'Добавлено в избранное',
+removed:'Удалено из избранного',no_reminder:'Напоминалок нет',active_reminder:'Активная напоминалка',delete:'Удалить',
+days:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],diff:'Разница',empty:'Пусто',err:'Ошибка'},
+en:{tab_clocks:'Clocks',tab_convert:'Convert',tab_reminders:'Reminders',tab_cities:'Cities',tab_settings:'Settings',
+home:'Home',favorites:'Favorite cities',custom:'My cities',search_ph:'Search city...',no_results:'Nothing found',
+not_set:'not set',convert_title:'Time converter',from:'From',to:'To',datetime:'Time',create_remind:'Create reminder',
+city:'City',time:'Time',text:'Text',save:'Save',cancel:'Close',create_custom:'Create custom city',city_name:'Name',
+timezone:'Timezone',language:'Language',time_format:'Format',reminder_saved:'Reminder saved!',reminder_deleted:'Reminder deleted',
+custom_created:'City created!',custom_deleted:'City deleted',settings_saved:'Saved!',added:'Added to favorites',
+removed:'Removed from favorites',no_reminder:'No reminders',active_reminder:'Active reminder',delete:'Delete',
+days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],diff:'Difference',empty:'Empty',err:'Error'}};
+const DAY_KEYS=['mon','tue','wed','thu','fri','sat','sun'];
+let S={lang:'ru',homeCity:null,favorites:[],customCities:[],reminder:null,timeFormat:'24'};
+let convFromCity=null,convToCity=null,remCitySel=null,custTzSel=null,pickerCb=null,selDays=new Set();
+const tg=window.Telegram?Telegram.WebApp:null;
+if(tg){tg.ready();tg.expand();}
+const INIT=tg?tg.initData:'';
+const DEV=new URLSearchParams(location.search).get('chatId')||'';
+const $=s=>document.querySelector(s);
+const T=k=>(I18N[S.lang]||I18N.ru)[k]||k;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2000);}
+async function api(path,method,body){
+try{
+const opts={method:method||'GET',headers:{'Content-Type':'application/json'}};
+const payload=Object.assign({initData:INIT,devChatId:DEV},body||{});
+if(method&&method!=='GET')opts.body=JSON.stringify(payload);
+let url='/api'+path;
+if(!method||method==='GET'){const q=new URLSearchParams(payload);url+='?'+q.toString();}
+const r=await fetch(url,opts);
+return await r.json();
+}catch(e){toast(T('err')+': '+e.message);return null;}
+}
+function offsetMin(tz,date){
+const dtf=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const m={};dtf.formatToParts(date).forEach(p=>m[p.type]=p.value);
+const asUTC=Date.UTC(m.year,m.month-1,m.day,m.hour%24,m.minute,m.second);
+return (asUTC-date.getTime())/60000;
+}
+function fmtIn(tz,date,withDate){
+const loc=S.lang==='ru'?'ru-RU':'en-GB';
+const o={timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:S.timeFormat==='12'};
+if(withDate){o.weekday='short';o.day='numeric';o.month='long';}
+return new Intl.DateTimeFormat(loc,o).format(date);
+}
+function applyLang(){
+document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=T(el.dataset.i18n);});
+document.querySelectorAll('[data-i18n-ph]').forEach(el=>{el.placeholder=T(el.dataset.i18nPh);});
+$('#langBtn').textContent=S.lang==='ru'?'EN':'RU';
+renderDaysChips();renderAll();
+}
+function renderDaysChips(){
+const box=$('#remDays');box.innerHTML='';
+DAY_KEYS.forEach((k,i)=>{const c=document.createElement('div');c.className='chip'+(selDays.has(k)?' on':'');c.textContent=T('days')[i];
+c.onclick=()=>{selDays.has(k)?selDays.delete(k):selDays.add(k);renderDaysChips();};box.appendChild(c);});
+const all=document.createElement('div');all.className='chip'+(selDays.size===7?' on':'');all.textContent=S.lang==='ru'?'Все дни':'All days';
+all.onclick=()=>{selDays=selDays.size===7?new Set():new Set(DAY_Ktml='';
+if(S.homeCity)html+=cityCard(S.homeCity,true);
+S.favorites.forEach(f=>{if(!S.homeCity||f.key!==S.homeCity.key)html+=cityCard(f,false);});
+S.customCities.forEach(c=>{html+=cityCard({name:c.name+' 🛠️',timezone:c.timezone},false);});
+box.innerHTML=html||`<div class="empty">${T('no_results')}</div>`;
+}
+setInterval(()=>{const now=new Date();
+document.querySelectorAll('[data-tz]').forEach(el=>el.textContent=fmtIn(el.dataset.tz,now,false));
+document.querySelectorAll('[data-tzd]').forEach(el=>el.textContent=fmtIn(el.dataset.tzd,now,true));
+if($('#page-convert').classList.contains('active'))doConvert();
+},1000);
+function renderConvert(){
+$('#convFrom').textContent=convFromCity?convFromCity.name:T('not_set');
+$('#convTo').textContent=convToCity?convToCity.name:T('not_set');
+doConvert();
+}
+function doConvert(){
+if(!convFromCity||!convToCity||!$('#convDate').value){$('#convResult').textContent='—';$('#convDiff').textContent='';return;}
+const v=$('#convDate').value;const [d,t]=v.split('T');const [y,mo,da]=d.split('-').map(Number);const [h,mi]=t.split(':').map(Number);
+const guess=Date.UTC(y,mo-1,da,h,mi);
+let off=offsetMin(convFromCity.timezone,new Date(guess));
+let instant=guess-off*60000;
+off=offsetMin(convFromCity.timezone,new Date(instant));
+instant=guess-off*60000;
+const res=new Date(instant);
+$('#convResult').textContent=fmtIn(convToCity.timezone,res,true);
+const now=new Date();
+const diffMin=offsetMin(convToCity.timezone,now)-offsetMin(convFromCity.timezone,now);
+const hh=Math.floor(Math.abs(diffMin)/60),mm=Math.abs(diffMin)%60;
+$('#convDiff').textContent=`${T('diff')}: ${diffMin>=0?'+':'-'}${hh}h ${mm}m`;
+}
+function renderReminders(){
+const box=$('#reminderBox');
+if(S.reminder){
+box.innerHTML=`<div class="card"><div class="name">${T('active_reminder')}</div>
+<div style="font-size:20px;font-weight:700;margin:6px 0">⏰ ${S.reminder.time} · ${S.reminder.city}</div>
+<div style="font-size:14px;margin-bottom:4px">📝 ${S.reminder.text||''}</div>
+<div style="font-size:12px;color:var(--hint)">📅 ${S.reminder.days}</div>
+<button class="btn danger" onclick="deleteReminder()">${T('delete')}</button></div>`;
+}else box.innerHTML=`<div class="empty">📭 ${T('no_reminder')}</div>`;
+$('#remCity').textContent=remCitySel?remCitySel.name:T('not_set');
+}
+window.deleteReminder=async()=>{await api('/reminders/delete','POST',{});S.reminder=null;renderReminders();toast(T('reminder_deleted'));};
+function renderCities(){
+const fav=$('#favList');
+fav.innerHTML=S.favorites.map(f=>`<div class="list-item"><span>${f.name}</span><span class="acts">
+<button class="icon-btn" onclick="toggleFav('${f.key.replace(/'/g,"\\'")}',false)">❌</button></span></div>`).join('')||`<div class="empty">${T('empty')}</div>`;
+const cust=$('#customList');
+cust.innerHTML=S.customCities.map(c=>`<div class="list-item"><span>${c.name}<br><small style="color:var(--hint)">${c.timezone}</small></span><span class="acts">
+<button class="icon-btn" onclick="deleteCustom(${c.id})">🗑️</button></span></div>`).join('')||`<div class="empty">${T('empty')}</div>`;
+}
+window.toggleFav=async(key,add)=>{
+await api('/favorites/toggle','POST',{key:key,add:add});
+if(add&&!S.favorites.find(f=>f.key===key)){const r=await api('/cities/search?q='+encodeURIComponent(key));if(r&&r[0])S.favorites.push(r[0]);toast(T('added'));}
+else{S.favorites=S.favorites.filter(f=>f.key!==key);toast(T('removed'));}
+renderCities();renderClocks();
+};
+window.deleteCustom=async id=>{await api('/custom/delete','POST',{id:id});S.customCities=S.customCities.filter(c=>c.id!==id);renderCities();renderClocks();toast(T('custom_deleted'));};
+function renderSettings(){
+$('#setLang').value=S.lang;$('#setFormat').value=S.timeFormat;
+$('#setHome').textContent=S.homeCity?S.homeCity.name:T('not_set');
+}
+function renderAll(){renderClocks();renderConvert();renderReminders();renderCities();renderSettings();}
+function openPicker(cb){
+pickerCb=cb;$('#picker').classList.remove('hidden');$('#pickerSearch').value='';$('#pickerResults').innerHTML='';$('#pickerSearch').focus();
+}
+$('#pickerClose').onclick=()=>$('#picker').classList.add('hidden');
+async function runSearch(q,target){
+const r=await api('/cities/search?q='+encodeURIComponent(q));
+target.innerHTML=(r||[]).map(c=>`<div class="list-item" style="cursor:pointer" data-key="${c.key}"><span>${c.name}<br><small style="color:var(--hint)">${c.country||''}</small></span><span>🕐</span></div>`).join('')||`<div class="empty">${T('no_results')}</div>`;
+target.querySelectorAll('[data-key]').forEach(el=>el.onclick=()=>{
+const city=r.find(c=>c.key===el.dataset.key);
+if(pickerCb)pickerCb(city);
+$('#picker').classList.add('hidden');
+});
+}
+let searchTimer;
+$('#pickerSearch').oninput=e=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>runSearch(e.target.value,$('#pickerResults')),400);};
+$('#searchInput').oninput=e=>{clearTimeout(searchTimer);searchTimer=setTimeout(async()=>{
+const r=await api('/cities/search?q='+encodeURIComponent(e.target.value));
+$('#searchResults').innerHTML=(r||[]).slice(0,10).map(c=>{
+const inFav=S.favorites.find(f=>f.key===c.key);
+return `<div class="list-item"><span>${c.name}</span><span class="acts"><button class="icon-btn" onclick="toggleFav('${c.key.replace(/'/g,"\\'")}',${!inFav})">${inFav?'⭐':'☆'}</button></span></div>`;
+}).join('');
+},400);};
+$('#convFrom').onclick=()=>openPicker(c=>{convFromCity=c;renderConvert();});
+$('#convTo').onclick=()=>openPicker(c=>{convToCity=c;renderConvert();});
+$('#remCity').onclick=()=>openPicker(c=>{remCitySel=c;renderReminders();});
+$('#custTz').onclick=()=>openPicker(c=>{custTzSel=c;$('#custTz').textContent=c.name+' ('+c.timezone+')';});
+$('#setHome').onclick=()=>openPicker(async c=>{await api('/home','POST',{key:c.key});S.homeCity=c;convFromCity=convFromCity||c;renderAll();toast(T('settings_saved'));});
+$('#remSave').onclick=async()=>{
+if(!remCitySel||!$('#remTime').value){toast(T('err'));return;}
+const r=await api('/reminders','POST',{key:remCitySel.key,time:$('#remTime').value,text:$('#remText').value,days:selDays.size?[...selDays].join(','):'all'});
+if(r&&r.ok){S.reminder=r.reminder;renderReminders();toast(T('reminder_saved'));}
+};
+$('#custSave').onclick=async()=>{
+if(!$('#custName').value||!custTzSel){toast(T('err'));return;}
+const r=await api('/custom','POST',{name:$('#custName').value,timezone:custTzSel.timezone});
+if(r&&r.ok){S.customCities.push(r.city);$('#custName').value='';renderCities();renderClocks();toast(T('custom_created'));}
+};
+$('#setSave').onclick=async()=>{
+const lang=$('#setLang').value,fmt=$('#setFormat').value;
+await api('/settings','POST',{lang:lang,format:fmt});
+S.lang=lang;S.timeFormat=fmt;applyLang();toast(T('settings_saved'));
+};
+$('#langBtn').onclick=async()=>{S.lang=S.lang==='ru'?'en':'ru';await api('/settings','POST',{lang:S.lang,format:S.timeFormat});applyLang();};
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+t.classList.add('active');$('#page-'+t.dataset.tab).classList.add('active');
+});
+$('#convDate').onchange=doConvert;
+async function init(){
+const r=await api('/state');
+if(r){S=Object.assign(S,r);}
+if(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user&&(!S.langSetByUser)){}
+S.lang=S.lang||((tg&&tg.languageCode)||'ru');
+const now=new Date();
+const pad=n=>String(n).padStart(2,'0');
+$('#convDate').value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+convFromCity=S.homeCity;
+applyLang();
+}
+init();
+</script>
+</body>
+</html>
