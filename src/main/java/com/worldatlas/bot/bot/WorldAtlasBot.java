@@ -178,6 +178,51 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         
         String lang = user.getLanguage();
 
+        // ========== ПРОВЕРКА ПОДПИСКИ НА КАНАЛ ==========
+        try {
+            org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember getMember = 
+                new org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember();
+            getMember.setChatId("@WorldTimeMap");
+            getMember.setUserId(user.getChatId());
+            var member = execute(getMember);
+            String status = member.getStatus();
+            boolean isSubscribed = "member".equals(status) || "administrator".equals(status) || "creator".equals(status);
+            
+            if (!isSubscribed && !text.equals("/start")) {
+                SendMessage subMsg = new SendMessage();
+                subMsg.setChatId(chatId);
+                subMsg.setText("en".equals(lang) ?
+                    "🔒 To use the bot, please subscribe to our channel first!\n\n📢 @WorldTimeMap" :
+                    "🔒 Чтобы пользоваться ботом, сначала подпишитесь на наш канал!\n\n📢 @WorldTimeMap");
+                
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup markup = 
+                    new org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup();
+                java.util.List<java.util.List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton>> keyboard = new java.util.ArrayList<>();
+                java.util.List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton> row = new java.util.ArrayList<>();
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton btn = 
+                    new org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton();
+                btn.setText("en".equals(lang) ? "📢 Subscribe to @WorldTimeMap" : "📢 Подписаться на @WorldTimeMap");
+                btn.setUrl("https://t.me/WorldTimeMap");
+                row.add(btn);
+                keyboard.add(row);
+                
+                java.util.List<org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton> row2 = new java.util.ArrayList<>();
+                org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton btn2 = 
+                    new org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton();
+                btn2.setText("en".equals(lang) ? "✅ I subscribed" : "✅ Я подписался");
+                btn2.setCallbackData("check_sub");
+                row2.add(btn2);
+                keyboard.add(row2);
+                
+                markup.setKeyboard(keyboard);
+                subMsg.setReplyMarkup(markup);
+                execute(subMsg);
+                return;
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Ошибка проверки подписки: " + e.getMessage());
+        }
+
         if (text.equals("/start")) {
             if (userService.isSubscribed(chatId)) {
                 sendWelcome(chatId, lang);
@@ -1606,7 +1651,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             }
         } else if (data.equals("start_lang_ru")) {
             userService.setLanguage(chatId, "ru");
-            String text_msg = "📢 <b>Подписка на канал</b>\n\nЧтобы продолжить, подпишитесь на наш канал:\n\n👉 <a href=\"https://t.me/WorldAtlasMap\">@WorldAtlasMap</a>\n\nПосле подписки нажмите кнопку ниже:";
+            String text_msg = "📢 <b>Подписка на канал</b>\n\nЧтобы продолжить, подпишитесь на наш канал:\n\n👉 <a href=\"https://t.me/WorldAtlasMap\">@WorldTimeMap</a>\n\nПосле подписки нажмите кнопку ниже:";
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
             List<List<InlineKeyboardButton>> rows = new ArrayList<>();
             List<InlineKeyboardButton> row1 = new ArrayList<>();
@@ -1620,7 +1665,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             userStates.put(chatId, STATE_WAITING_SUBSCRIPTION);
         } else if (data.equals("start_lang_en")) {
             userService.setLanguage(chatId, "en");
-            String text_msg = "📢 <b>Subscribe to channel</b>\n\nTo continue, subscribe to our channel:\n\n👉 <a href=\"https://t.me/WorldAtlasMap\">@WorldAtlasMap</a>\n\nAfter subscribing, click the button below:";
+            String text_msg = "📢 <b>Subscribe to channel</b>\n\nTo continue, subscribe to our channel:\n\n👉 <a href=\"https://t.me/WorldAtlasMap\">@WorldTimeMap</a>\n\nAfter subscribing, click the button below:";
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
             List<List<InlineKeyboardButton>> rows = new ArrayList<>();
             List<InlineKeyboardButton> row1 = new ArrayList<>();
@@ -1635,7 +1680,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         } else if (data.equals("check_subscription")) {
             try {
                 GetChatMember getChatMember = new GetChatMember();
-                getChatMember.setChatId("@WorldAtlasMap");
+                getChatMember.setChatId("@WorldTimeMap");
                 getChatMember.setUserId(chatId);
                 ChatMember member = execute(getChatMember);
                 String status = member.getStatus();
@@ -1649,8 +1694,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     sendWelcome(chatId, updatedUser.getLanguage());
                 } else {
                     String errorMsg = "en".equals(lang) ?
-                        "❌ You are not subscribed to @WorldAtlasMap yet.\n\nPlease subscribe and try again." :
-                        "❌ Вы еще не подписаны на @WorldAtlasMap.\n\nПожалуйста, подпишитесь и попробуйте снова.";
+                        "❌ You are not subscribed to @WorldTimeMap yet.\n\nPlease subscribe and try again." :
+                        "❌ Вы еще не подписаны на @WorldTimeMap.\n\nПожалуйста, подпишитесь и попробуйте снова.";
                     editMessageText(chatId, messageId, errorMsg);
                 }
             } catch (TelegramApiException e) {
