@@ -84,7 +84,21 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         this.botUsername = botUsername;
         this.botToken = botToken;
     
-        setCommands();
+        // Отложенная установка команд в отдельном потоке
+        new Thread(() -> {
+            int attempts = 5;
+            while (attempts > 0) {
+                try {
+                    Thread.sleep(10000);
+                    setCommands();
+                    System.out.println("✅ Команды успешно установлены");
+                    break;
+                } catch (Exception e) {
+                    attempts--;
+                    System.out.println("⚠️ Установка команд (попыток осталось: " + attempts + "): " + e.getMessage());
+                }
+            }
+        }).start();
     }
 
 
