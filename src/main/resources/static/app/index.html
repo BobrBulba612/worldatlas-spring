@@ -3,41 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<script src="https://telegram.org/js/telegram-web-app.js">
-function renderSupport(){
-  $('#supportHistory').innerHTML='<div class="empty">...</div>';
-  api('/support').then(r=>{
-    if(!r||!r.length){$('#supportHistory').innerHTML=`<div class="empty">${T('empty')}</div>`;return;}
-    $('#supportHistory').innerHTML=r.map(m=>`<div class="card">
-      <div style="font-size:13px;color:var(--hint)">${new Date(m.date).toLocaleString()}</div>
-      <div style="margin:6px 0">💬 ${m.text}</div>
-      ${m.answered?`<div style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px"><strong style="color:var(--ok)">🤖 ${T('support_answered')}:</strong><br>${m.reply}</div>`:`<div style="color:var(--hint);font-size:12px">⏳ ${T('support_wait')}</div>`}
-    </div>`).join('');
-  });
-}
-$('#supportSend').onclick=async()=>{
-  const text=$('#supportText').value.trim();
-  if(!text){toast(T('err'));return;}
-  const r=await api('/support','POST',{text:text});
-  if(r&&r.ok){$('#supportText').value='';toast(T('support_sent'));renderSupport();}
-  else if(r&&r.error==='rate_limit'){toast(T('support_limit'));}
-  else toast(T('err'));
-};
-document.querySelectorAll('.tab').forEach(t=>{
-  const orig=t.onclick;
-  t.onclick=()=>{orig&&orig.call(t);if(t.dataset.tab==='support')renderSupport();};
-});
-
-</script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{--bg:#1c1c2e;--card:#262640;--text:#ffffff;--hint:#8a8aa3;--accent:#5b8def;--danger:#e05b5b;--ok:#4fc379}
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-body{background:var(--bg);color:var(--text);padding-bottom:20px}
+body{background:var(--bg);color:var(--text);padding-bottom:20px;min-height:100vh}
 header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;position:sticky;top:0;background:var(--bg);z-index:10}
 header h1{font-size:18px}
 .lang-btn{background:var(--card);border:none;color:var(--accent);padding:6px 12px;border-radius:16px;font-weight:600;cursor:pointer}
-.tabs{display:flex;justify-content:space-around;padding:8px 4px;position:sticky;top:50px;background:var(--bg);z-index:10;border-bottom:1px solid var(--card)}
-.tab{background:none;border:none;color:var(--hint);font-size:11px;cursor:pointer;padding:6px 8px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs{display:flex;justify-content:space-around;padding:8px 4px;position:sticky;top:50px;background:var(--bg);z-index:10;border-bottom:1px solid var(--card);overflow-x:auto}
+.tab{background:none;border:none;color:var(--hint);font-size:10px;cursor:pointer;padding:6px 8px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:60px;flex-shrink:0}
 .tab .ico{font-size:20px}
 .tab.active{color:var(--accent);background:var(--card)}
 .page{display:none;padding:14px}
@@ -49,7 +24,7 @@ header h1{font-size:18px}
 .card .tag{font-size:10px;background:var(--accent);color:#fff;border-radius:8px;padding:2px 8px;margin-left:6px}
 .row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .row label{font-size:13px;color:var(--hint);min-width:70px}
-input,select{flex:1;background:var(--bg);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;font-size:14px}
+input,select,textarea{flex:1;background:var(--bg);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;font-size:14px;font-family:inherit}
 button.btn{width:100%;background:var(--accent);border:none;color:#fff;padding:12px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px}
 button.btn.danger{background:var(--danger)}
 button.pick{flex:1;background:var(--bg);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;text-align:left;cursor:pointer;font-size:14px}
@@ -63,11 +38,24 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 .result-box{background:var(--card);border-radius:14px;padding:16px;text-align:center;margin-top:10px}
 .result-box .big{font-size:28px;font-weight:700;color:var(--ok)}
 .result-box .sub{font-size:13px;color:var(--hint);margin-top:4px}
+.diff-box{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;background:var(--card);border-radius:14px;padding:16px;margin-top:10px}
+.diff-city{text-align:center}
+.diff-city .city{font-size:12px;color:var(--hint)}
+.diff-city .time{font-size:24px;font-weight:700;margin:4px 0}
+.diff-arrow{font-size:24px;color:var(--accent)}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;flex-direction:column;padding:14px}
 .modal.hidden{display:none}
 .modal .results{flex:1;overflow-y:auto;margin-top:10px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:200;display:none}
 .empty{color:var(--hint);font-size:13px;text-align:center;padding:20px}
+.info-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+.info-grid .label{color:var(--hint)}
+.info-grid .value{color:var(--text)}
+.feature-list{list-style:none;padding:0}
+.feature-list li{background:var(--card);border-radius:10px;padding:12px;margin-bottom:6px;font-size:13px;line-height:1.5}
+.cmd-list{list-style:none;padding:0}
+.cmd-list li{background:var(--card);border-radius:8px;padding:8px 12px;margin-bottom:4px;font-size:12px;font-family:monospace}
+.debug{background:var(--card);border-radius:10px;padding:10px;margin:10px 0;font-size:11px;font-family:monospace;color:var(--hint);max-height:200px;overflow-y:auto}
 </style>
 </head>
 <body>
@@ -75,13 +63,17 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 <nav class="tabs">
 <button class="tab active" data-tab="clocks"><span class="ico">🌍</span><span data-i18n="tab_clocks"></span></button>
 <button class="tab" data-tab="convert"><span class="ico">🔁</span><span data-i18n="tab_convert"></span></button>
+<button class="tab" data-tab="diff"><span class="ico">🔢</span><span data-i18n="tab_diff"></span></button>
 <button class="tab" data-tab="reminders"><span class="ico">⏰</span><span data-i18n="tab_reminders"></span></button>
 <button class="tab" data-tab="cities"><span class="ico">⭐</span><span data-i18n="tab_cities"></span></button>
 <button class="tab" data-tab="support"><span class="ico">💬</span><span data-i18n="tab_support"></span></button>
-<button class="tab" data-tab="settings"><span class="ico">⚙️</span><span data-i18n="tab_settings"></span></button>
+<button class="tab" data-tab="help"><span class="ico">ℹ️</span><span data-i18n="tab_help"></span></button>
 </nav>
 <main>
-<section id="page-clocks" class="page active"><div id="clocksList"></div></section>
+<section id="page-clocks" class="page active">
+<div id="clocksList"></div>
+<button class="btn" id="addFavBtn" data-i18n="add_favorite"></button>
+</section>
 
 <section id="page-convert" class="page">
 <h3 data-i18n="convert_title"></h3>
@@ -89,6 +81,13 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 <div class="row"><label data-i18n="to"></label><button class="pick" id="convTo"></button></div>
 <div class="row"><label data-i18n="datetime"></label><input type="datetime-local" id="convDate"></div>
 <div class="result-box"><div class="big" id="convResult">—</div><div class="sub" id="convDiff"></div></div>
+</section>
+
+<section id="page-diff" class="page">
+<h3 data-i18n="diff_title"></h3>
+<div class="row"><label data-i18n="city1"></label><button class="pick" id="diffCity1"></button></div>
+<div class="row"><label data-i18n="city2"></label><button class="pick" id="diffCity2"></button></div>
+<div id="diffResult"></div>
 </section>
 
 <section id="page-reminders" class="page">
@@ -114,17 +113,14 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 
 <section id="page-support" class="page">
 <h3 data-i18n="support_title"></h3>
-<textarea id="supportText" data-i18n-ph="support_placeholder" style="width:100%;background:var(--card);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;font-size:14px;min-height:80px;resize:vertical"></textarea>
+<textarea id="supportText" data-i18n-ph="support_placeholder" style="min-height:80px;resize:vertical"></textarea>
 <button class="btn" id="supportSend" data-i18n="support_send"></button>
 <h3 data-i18n="support_history"></h3>
 <div id="supportHistory"></div>
 </section>
 
-<section id="page-settings" class="page">
-<div class="row"><label data-i18n="language"></label><select id="setLang"><option value="ru">Русский</option><option value="en">English</option></select></div>
-<div class="row"><label data-i18n="time_format"></label><select id="setFormat"><option value="24">24h</option><option value="12">12h</option></select></div>
-<div class="row"><label data-i18n="home"></label><button class="pick" id="setHome"></button></div>
-<button class="btn" id="setSave" data-i18n="save"></button>
+<section id="page-help" class="page">
+<div id="helpContent"></div>
 </section>
 </main>
 
@@ -133,54 +129,57 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 <div class="results" id="pickerResults"></div>
 <button class="btn danger" id="pickerClose" data-i18n="cancel"></button>
 </div>
+
+<div class="modal hidden" id="cityInfo">
+<h3 id="cityInfoName"></h3>
+<div id="cityInfoContent"></div>
+<button class="btn danger" id="cityInfoClose" data-i18n="close"></button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const I18N={
-ru:{tab_clocks:'Часы',tab_convert:'Конвертер',tab_reminders:'Напоминалки',tab_cities:'Города',tab_settings:'Настройки',
+ru:{tab_clocks:'Часы',tab_convert:'Конвертер',tab_diff:'Разница',tab_reminders:'Напоминалки',tab_cities:'Города',tab_support:'Поддержка',tab_help:'Справка',
 home:'Домашний',favorites:'Избранные города',custom:'Мои города',search_ph:'Поиск города...',no_results:'Ничего не найдено',
 not_set:'не задан',convert_title:'Конвертер времени',from:'Откуда',to:'Куда',datetime:'Время',create_remind:'Создать напоминалку',
-city:'Город',time:'Время',text:'Текст',save:'Сохранить',cancel:'Закрыть',create_custom:'Создать свой город',city_name:'Название',
-timezone:'Часовой пояс',language:'Язык',time_format:'Формат',reminder_saved:'Напоминалка сохранена!',reminder_deleted:'Напоминалка удалена',
-custom_created:'Город создан!',custom_deleted:'Город удалён',settings_saved:'Сохранено!',added:'Добавлено в избранное',
-removed:'Удалено из избранного',no_reminder:'Напоминалок нет',active_reminder:'Активная напоминалка',delete:'Удалить',
-days:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],diff:'Разница',empty:'Пусто',err:'Ошибка',tab_support:'Поддержка',support_title:'Написать в поддержку',support_placeholder:'Опишите проблему...',support_send:'Отправить',support_sent:'Сообщение отправлено!',support_limit:'Не чаще 1 сообщения в минуту',support_history:'История обращений',support_wait:'Ожидает ответа',support_answered:'Отвечено'},
-en:{tab_clocks:'Clocks',tab_convert:'Convert',tab_reminders:'Reminders',tab_cities:'Cities',tab_settings:'Settings',
+city:'Город',time:'Время',text:'Текст',save:'Сохранить',cancel:'Закрыть',close:'Закрыть',create_custom:'Создать свой город',city_name:'Название',
+timezone:'Часовой пояс',add_favorite:'➕ Добавить в избранное',diff_title:'Разница во времени',city1:'Город 1',city2:'Город 2',
+support_title:'Написать в поддержку',support_placeholder:'Опишите проблему...',support_send:'Отправить',support_sent:'Сообщение отправлено!',
+support_limit:'Не чаще 1 сообщения в минуту',support_history:'История обращений',support_wait:'Ожидает ответа',support_answered:'Отвечено',
+reminder_saved:'Напоминалка сохранена!',reminder_deleted:'Напоминалка удалена',custom_created:'Город создан!',custom_deleted:'Город удалён',
+settings_saved:'Сохранено!',added:'Добавлено в избранное',removed:'Удалено из избранного',no_reminder:'Напоминалок нет',active_reminder:'Активная напоминалка',
+delete:'Удалить',days:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],diff:'Разница',empty:'Пусто',err:'Ошибка',loading:'Загрузка...',
+debug:'Отладка',no_auth:'Нет авторизации. Приложение работает в демо-режиме.'},
+en:{tab_clocks:'Clocks',tab_convert:'Convert',tab_diff:'Diff',tab_reminders:'Reminders',tab_cities:'Cities',tab_support:'Support',tab_help:'Help',
 home:'Home',favorites:'Favorite cities',custom:'My cities',search_ph:'Search city...',no_results:'Nothing found',
 not_set:'not set',convert_title:'Time converter',from:'From',to:'To',datetime:'Time',create_remind:'Create reminder',
-city:'City',time:'Time',text:'Text',save:'Save',cancel:'Close',create_custom:'Create custom city',city_name:'Name',
-timezone:'Timezone',language:'Language',time_format:'Format',reminder_saved:'Reminder saved!',reminder_deleted:'Reminder deleted',
-custom_created:'City created!',custom_deleted:'City deleted',settings_saved:'Saved!',added:'Added to favorites',
-removed:'Removed from favorites',no_reminder:'No reminders',active_reminder:'Active reminder',delete:'Delete',
-days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],diff:'Difference',empty:'Empty',err:'Error',tab_support:'Support',support_title:'Contact support',support_placeholder:'Describe your issue...',support_send:'Send',support_sent:'Message sent!',support_limit:'Max 1 message per minute',support_history:'History',support_wait:'Waiting',support_answered:'Answered'}};
+city:'City',time:'Time',text:'Text',save:'Save',cancel:'Close',close:'Close',create_custom:'Create custom city',city_name:'Name',
+timezone:'Timezone',add_favorite:'➕ Add to favorites',diff_title:'Time difference',city1:'City 1',city2:'City 2',
+support_title:'Contact support',support_placeholder:'Describe your issue...',support_send:'Send',support_sent:'Message sent!',
+support_limit:'Max 1 message per minute',support_history:'History',support_wait:'Waiting',support_answered:'Answered',
+reminder_saved:'Reminder saved!',reminder_deleted:'Reminder deleted',custom_created:'City created!',custom_deleted:'City deleted',
+settings_saved:'Saved!',added:'Added to favorites',removed:'Removed from favorites',no_reminder:'No reminders',active_reminder:'Active reminder',
+delete:'Delete',days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],diff:'Difference',empty:'Empty',err:'Error',loading:'Loading...',
+debug:'Debug',no_auth:'No authorization. App is in demo mode.'}};
 const DAY_KEYS=['mon','tue','wed','thu','fri','sat','sun'];
 let S={lang:'ru',homeCity:null,favorites:[],customCities:[],reminder:null,timeFormat:'24'};
-let convFromCity=null,convToCity=null,remCitySel=null,custTzSel=null,pickerCb=null,selDays=new Set();
+let convFromCity=null,convToCity=null,diffC1=null,diffC2=null,remCitySel=null,custTzSel=null,pickerCb=null,selDays=new Set();
 const tg=window.Telegram?Telegram.WebApp:null;
 if(tg){tg.ready();tg.expand();}
 const INIT=tg?tg.initData:'';
-const DEV=new URLSearchParams(location.search).get('chatId')||'';
+const DEV=new URLSearchParams(location.search).get('chatId')||'1319065617';
 const $=s=>document.querySelector(s);
 const T=k=>(I18N[S.lang]||I18N.ru)[k]||k;
 function toast(msg){const t=$('#toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2000);}
+function showDebug(msg){let d=document.getElementById('debugBox');if(!d){d=document.createElement('div');d.id='debugBox';d.className='debug';document.body.prepend(d);}d.textContent+=msg+'\n';}
 async function api(path,method,body){
 try{
 const opts={method:method||'GET',headers:{'Content-Type':'application/json'}};
 const payload=Object.assign({initData:INIT,devChatId:DEV},body||{});
 if(method&&method!=='GET')opts.body=JSON.stringify(payload);
 let url='/api'+path;
-if(!method||method==='GET'){const q=new URLSearchParams(payload);url+='?'+q.toString();}
-const r=await fetch(url,opts);
-return await r.json();
-}catch(e){toast(T('err')+': '+e.message);return null;}
-}
-function offsetMin(tz,date){
-const dtf=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-const m={};dtf.formatToParts(date).forEach(p=>m[p.type]=p.value);
-const asUTC=Date.UTC(m.year,m.month-1,m.day,m.hour%24,m.minute,m.second);
-return (asUTC-date.getTime())/60000;
-}
-function fmtIn(tz,date,withDate){
+if(!method||method==='GET'){const q=new URLSeaate,withDate){
 const loc=S.lang==='ru'?'ru-RU':'en-GB';
 const o={timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:S.timeFormat==='12'};
 if(withDate){o.weekday='short';o.day='numeric';o.month='long';}
@@ -197,10 +196,21 @@ const box=$('#remDays');box.innerHTML='';
 DAY_KEYS.forEach((k,i)=>{const c=document.createElement('div');c.className='chip'+(selDays.has(k)?' on':'');c.textContent=T('days')[i];
 c.onclick=()=>{selDays.has(k)?selDays.delete(k):selDays.add(k);renderDaysChips();};box.appendChild(c);});
 const all=document.createElement('div');all.className='chip'+(selDays.size===7?' on':'');all.textContent=S.lang==='ru'?'Все дни':'All days';
-all.onclick=()=>{selDays=selDays.size===7?new Set():new Set(DAY_Ktml='';
+all.onclick=()=>{selDays=selDays.size===7?new Set():new Set(DAY_KEYS);renderDaysChips();};box.appendChild(all);
+}
+function cityCard(c,isHome){
+const now=new Date();
+return `<div class="card" onclick="showCityInfo('${c.key}')"><div class="name">${c.name}${isHome?`<span class="tag">${T('home')}</span>`:''}</div>
+<div class="time" data-tz="${c.timezone}">${fmtIn(c.timezone,now,false)}</div>
+<div class="date" data-tzd="${c.timezone}">${fmtIn(c.timezone,now,true)}</div></div>`;
+}
+function renderClocks(){
+const box=$('#clocksList');let html='';
 if(S.homeCity)html+=cityCard(S.homeCity,true);
 S.favorites.forEach(f=>{if(!S.homeCity||f.key!==S.homeCity.key)html+=cityCard(f,false);});
-S.customCities.forEach(c=>{html+=cityCard({name:c.name+' 🛠️',timezone:c.timezone},false);});
+S.customCities.forEach(c=>{html+=`<div class="card"><div class="name">${c.name} 🛠️</div>
+<div class="time" data-tz="${c.timezone}">${fmtIn(c.timezone,new Date(),false)}</div>
+<div class="date" data-tzd="${c.timezone}">${fmtIn(c.timezone,new Date(),true)}</div></div>`;});
 box.innerHTML=html||`<div class="empty">${T('no_results')}</div>`;
 }
 setInterval(()=>{const now=new Date();
@@ -227,6 +237,20 @@ const now=new Date();
 const diffMin=offsetMin(convToCity.timezone,now)-offsetMin(convFromCity.timezone,now);
 const hh=Math.floor(Math.abs(diffMin)/60),mm=Math.abs(diffMin)%60;
 $('#convDiff').textContent=`${T('diff')}: ${diffMin>=0?'+':'-'}${hh}h ${mm}m`;
+}
+async function renderDiff(){
+$('#diffCity1').textContent=diffC1?diffC1.name:T('not_set');
+$('#diffCity2').textContent=diffC2?diffC2.name:T('not_set');
+if(!diffC1||!diffC2){$('#diffResult').innerHTML='';return;}
+const r=await api('/diff?city1='+encodeURIComponent(diffC1.key)+'&city2='+encodeURIComponent(diffC2.key));
+if(r&&r.ok){
+$('#diffResult').innerHTML=`<div class="diff-box">
+<div class="diff-city"><div class="city">${r.city1.name}</div><div class="time">${r.time1}</div><div style="font-size:11px;color:var(--hint)">${r.date1}</div></div>
+<div class="diff-arrow">→</div>
+<div class="diff-city"><div class="city">${r.city2.name}</div><div class="time">${r.time2}</div><div style="font-size:11px;color:var(--hint)">${r.date2}</div></div>
+</div>
+<div class="result-box"><div class="big">${r.diff}</div><div class="sub">${T('diff')}</div></div>`;
+}else{$('#diffResult').innerHTML=`<div class="empty">${T('err')}</div>`;}
 }
 function renderReminders(){
 const box=$('#reminderBox');
@@ -255,13 +279,30 @@ else{S.favorites=S.favorites.filter(f=>f.key!==key);toast(T('removed'));}
 renderCities();renderClocks();
 };
 window.deleteCustom=async id=>{await api('/custom/delete','POST',{id:id});S.customCities=S.customCities.filter(c=>c.id!==id);renderCities();renderClocks();toast(T('custom_deleted'));};
-function renderSettings(){
-$('#setLang').value=S.lang;$('#setFormat').value=S.timeFormat;
-$('#setHome').textContent=S.homeCity?S.homeCity.name:T('not_set');
+function renderSupport(){
+$('#supportHistory').innerHTML='<div class="empty">...</div>';
+api('/support').then(r=>{
+if(!r||!r.length){$('#supportHistory').innerHTML=`<div class="empty">${T('empty')}</div>`;return;}
+$('#supportHistory').innerHTML=r.map(m=>`<div class="card">
+<div style="font-size:13px;color:var(--hint)">${new Date(m.date).toLocaleString()}</div>
+<div style="margin:6px 0">💬 ${m.text}</div>
+${m.answered?`<div style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px"><strong style="color:var(--ok)">🤖 ${T('support_answered')}:</strong><br>${m.reply}</div>`:`<div style="color:var(--hint);font-size:12px">⏳ ${T('support_wait')}</div>`}
+</div>`).join('');
+});
 }
-function renderAll(){renderClocks();renderConvert();renderReminders();renderCities();renderSettings();}
+async function renderHelp(){
+const r=await api('/help?lang='+S.lang);
+if(r){
+$('#helpContent').innerHTML=`<h2>${r.title}</h2>
+<h3>✨ ${S.lang==='ru'?'Возможности':'Features'}</h3>
+<ul class="feature-list">${r.features.map(f=>`<li>${f.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</li>`).join('')}</ul>
+<h3>📋 ${S.lang==='ru'?'Команды':'Commands'}</h3>
+<ul class="cmd-list">${r.commands.map(c=>`<li>${c}</li>`).join('')}</ul>`;
+}else{$('#helpContent').innerHTML=`<div class="empty">${T('err')}</div>`;}
+}
+function renderAll(){renderClocks();renderConvert();renderDiff();renderReminders();renderCities();renderHelp();}
 function openPicker(cb){
-pickerCb=cb;$('#picker').classList.remove('hidden');$('#pickerSearch').value='';$('#pickerResults').innerHTML='';$('#pickerSearch').focus();
+pickerCb=cb;$('#picker').classList.rults').innerHTML='';$('#pickerSearch').focus();
 }
 $('#pickerClose').onclick=()=>$('#picker').classList.add('hidden');
 async function runSearch(q,target){
@@ -273,6 +314,23 @@ if(pickerCb)pickerCb(city);
 $('#picker').classList.add('hidden');
 });
 }
+async function showCityInfo(key){
+$('#cityInfo').classList.remove('hidden');
+$('#cityInfoName').textContent=T('loading');
+$('#cityInfoContent').innerHTML='';
+const r=await api('/city/info?key='+encodeURIComponent(key));
+if(r&&r.ok){
+$('#cityInfoName').textContent=r.city.name;
+$('#cityInfoContent').innerHTML=`<div class="info-grid">
+<div class="label">${S.lang==='ru'?'Страна':'Country'}:</div><div class="value">${r.country}</div>
+<div class="label">${S.lang==='ru'?'Континент':'Continent'}:</div><div class="value">${r.continent}</div>
+<div class="label">${S.lang==='ru'?'Время':'Time'}:</div><div class="value">${r.currentTime}</div>
+<div class="label">${S.lang==='ru'?'Дата':'Date'}:</div><div class="value">${r.currentDate}</div>
+<div class="label">${S.lang==='ru'?'Часовой пояс':'Timezone'}:</div><div class="value">${r.city.timezone}</div>
+</div>`;
+}else{$('#cityInfoName').textContent=T('err');}
+}
+$('#cityInfoClose').onclick=()=>$('#cityInfo').classList.add('hidden');
 let searchTimer;
 $('#pickerSearch').oninput=e=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>runSearch(e.target.value,$('#pickerResults')),400);};
 $('#searchInput').oninput=e=>{clearTimeout(searchTimer);searchTimer=setTimeout(async()=>{
@@ -284,9 +342,11 @@ return `<div class="list-item"><span>${c.name}</span><span class="acts"><button 
 },400);};
 $('#convFrom').onclick=()=>openPicker(c=>{convFromCity=c;renderConvert();});
 $('#convTo').onclick=()=>openPicker(c=>{convToCity=c;renderConvert();});
+$('#diffCity1').onclick=()=>openPicker(c=>{diffC1=c;renderDiff();});
+$('#diffCity2').onclick=()=>openPicker(c=>{diffC2=c;renderDiff();});
 $('#remCity').onclick=()=>openPicker(c=>{remCitySel=c;renderReminders();});
 $('#custTz').onclick=()=>openPicker(c=>{custTzSel=c;$('#custTz').textContent=c.name+' ('+c.timezone+')';});
-$('#setHome').onclick=()=>openPicker(async c=>{await api('/home','POST',{key:c.key});S.homeCity=c;convFromCity=convFromCity||c;renderAll();toast(T('settings_saved'));});
+$('#addFavBtn').onclick=()=>openPicker(c=>toggleFav(c.key,true));
 $('#remSave').onclick=async()=>{
 if(!remCitySel||!$('#remTime').value){toast(T('err'));return;}
 const r=await api('/reminders','POST',{key:remCitySel.key,time:$('#remTime').value,text:$('#remText').value,days:selDays.size?[...selDays].join(','):'all'});
@@ -297,55 +357,46 @@ if(!$('#custName').value||!custTzSel){toast(T('err'));return;}
 const r=await api('/custom','POST',{name:$('#custName').value,timezone:custTzSel.timezone});
 if(r&&r.ok){S.customCities.push(r.city);$('#custName').value='';renderCities();renderClocks();toast(T('custom_created'));}
 };
-$('#setSave').onclick=async()=>{
-const lang=$('#setLang').value,fmt=$('#setFormat').value;
-await api('/settings','POST',{lang:lang,format:fmt});
-S.lang=lang;S.timeFormat=fmt;applyLang();toast(T('settings_saved'));
+$('#supportSend').onclick=async()=>{
+const text=$('#supportText').value.trim();
+if(!text){toast(T('err'));return;}
+const r=await api('/support','POST',{text:text});
+if(r&&r.ok){$('#supportText').value='';toast(T('support_sent'));renderSupport();}
+else if(r&&r.error==='rate_limit'){toast(T('support_limit'));}
+else toast(T('err'));
 };
-$('#langBtn').onclick=async()=>{S.lang=S.lang==='ru'?'en':'ru';await api('/settings','POST',{lang:S.lang,format:S.timeFormat});applyLang();};
+$('#langBtn').onclick=async()=>{
+S.lang=S.lang==='ru'?'en':'ru';
+await api('/settings','POST',{lang:S.lang,format:S.timeFormat});
+applyLang();
+};
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
 document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
 document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-t.classList.add('active');$('#page-'+t.dataset.tab).classList.add('active');
+t.classList.add('active');
+$('#page-'+t.dataset.tab).classList.add('active');
+if(t.dataset.tab==='support')renderSupport();
+if(t.dataset.tab==='help')renderHelp();
 });
 $('#convDate').onchange=doConvert;
 async function init(){
+showDebug('Инициализация...');
+showDebug('INIT: '+(INIT?'есть ('+INIT.length+' chars)':'пусто'));
+showDebug('DEV chatId: '+DEV);
 const r=await api('/state');
-if(r){S=Object.assign(S,r);}
-if(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user&&(!S.langSetByUser)){}
+if(r&&r.error==='unauthorized'){showDebug('⚠️ Нет авторизации - демо режим');S.lang=(tg&&tg.languageCode)||'ru';}
+else if(r){S=Object.assign(S,r);showDebug('✅ Данные загружены');}
+else showDebug('❌ Ошибка загрузки данных');
 S.lang=S.lang||((tg&&tg.languageCode)||'ru');
 const now=new Date();
 const pad=n=>String(n).padStart(2,'0');
 $('#convDate').value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 convFromCity=S.homeCity;
+if(!convFromCity&&S.favorites&&S.favorites.length>0)convFromCity=S.favorites[0];
 applyLang();
+if(!INIT)toast(T('no_auth'));
 }
 init();
-
-function renderSupport(){
-  $('#supportHistory').innerHTML='<div class="empty">...</div>';
-  api('/support').then(r=>{
-    if(!r||!r.length){$('#supportHistory').innerHTML=`<div class="empty">${T('empty')}</div>`;return;}
-    $('#supportHistory').innerHTML=r.map(m=>`<div class="card">
-      <div style="font-size:13px;color:var(--hint)">${new Date(m.date).toLocaleString()}</div>
-      <div style="margin:6px 0">💬 ${m.text}</div>
-      ${m.answered?`<div style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px"><strong style="color:var(--ok)">🤖 ${T('support_answered')}:</strong><br>${m.reply}</div>`:`<div style="color:var(--hint);font-size:12px">⏳ ${T('support_wait')}</div>`}
-    </div>`).join('');
-  });
-}
-$('#supportSend').onclick=async()=>{
-  const text=$('#supportText').value.trim();
-  if(!text){toast(T('err'));return;}
-  const r=await api('/support','POST',{text:text});
-  if(r&&r.ok){$('#supportText').value='';toast(T('support_sent'));renderSupport();}
-  else if(r&&r.error==='rate_limit'){toast(T('support_limit'));}
-  else toast(T('err'));
-};
-document.querySelectorAll('.tab').forEach(t=>{
-  const orig=t.onclick;
-  t.onclick=()=>{orig&&orig.call(t);if(t.dataset.tab==='support')renderSupport();};
-});
-
 </script>
 </body>
 </html>

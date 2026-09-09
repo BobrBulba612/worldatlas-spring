@@ -344,4 +344,143 @@ public class WebAppController {
         out.put("messageId", msg.getId());
         return out;
     }
+
+    // ========== РАЗНИЦА ВО ВРЕМЕНИ ==========
+    @GetMapping("/diff")
+    public Map<String, Object> timeDiff(@RequestParam String city1,
+                                        @RequestParam String city2,
+                                        @RequestParam(required = false) String initData,
+                                        @RequestParam(required = false) String devChatId) {
+        Map<String, Object> out = new HashMap<>();
+        City c1 = cityService.findCity(city1);
+        City c2 = cityService.findCity(city2);
+        
+        if (c1 == null || c2 == null) {
+            out.put("ok", false);
+            out.put("error", "city_not_found");
+            return out;
+        }
+        
+        try {
+            java.time.ZoneId z1 = java.time.ZoneId.of(c1.getTimezone());
+            java.time.ZoneId z2 = java.time.ZoneId.of(c2.getTimezone());
+            java.time.ZonedDateTime now1 = java.time.ZonedDateTime.now(z1);
+            java.time.ZonedDateTime now2 = now1.withZoneSameInstant(z2);
+            
+            long diffMinutes = java.time.Duration.between(now1, now2).toMinutes();
+            long hours = Math.abs(diffMinutes) / 60;
+            long minutes = Math.abs(diffMinutes) % 60;
+            String sign = diffMinutes >= 0 ? "+" : "-";
+            
+            out.put("ok", true);
+            out.put("city1", cityJson(c1, "en"));
+            out.put("city2", cityJson(c2, "en"));
+            out.put("diff", String.format("%s%dh %dm", sign, hours, minutes));
+            out.put("time1", now1.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+            out.put("time2", now2.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+            out.put("date1", now1.toLocalDate().toString());
+            out.put("date2", now2.toLocalDate().toString());
+        } catch (Exception e) {
+            out.put("ok", false);
+            out.put("error", e.getMessage());
+        }
+        return out;
+    }
+
+    // ========== СПРАВКА ==========
+    @GetMapping("/help")
+    public Map<String, Object> help(@RequestParam(required = false) String lang) {
+        Map<String, Object> out = new HashMap<>();
+        String l = "en".equals(lang) ? "en" : "ru";
+        
+        if ("en".equals(l)) {
+            out.put("title", "🌍 World Time Map Bot");
+            out.put("features", java.util.Arrays.asList(
+                "🕐 **World Clock** - Track time in multiple cities worldwide",
+                "🔁 **Time Converter** - Convert time between any two cities",
+                "🔢 **Time Difference** - See hours difference between cities",
+                "⏰ **Reminders** - Set reminders for specific times in any city",
+                "⭐ **Favorites** - Save cities for quick access",
+                "🏙️ **Custom Cities** - Create your own cities with any timezone",
+                "🌐 **Multi-language** - Switch between Russian and English",
+                "💬 **Support** - Contact developer directly"
+            ));
+            out.put("commands", java.util.Arrays.asList(
+                "/start - Start the bot",
+                "/worldclock - Show world clock",
+                "/convert - Convert time from home city",
+                "/diff - Time difference between cities",
+                "/remind - Create a reminder",
+                "/remind_list - View your reminder",
+                "/delete_remind - Delete reminder",
+                "/home - Set home city",
+                "/search_city - Search for a city",
+                "/view_favorites - Your favorite cities",
+                "/create_custom - Create custom city",
+                "/list_custom - List custom cities",
+                "/delete_custom - Delete custom city",
+                "/lang - Change language",
+                "/help - Bot help"
+            ));
+        } else {
+            out.put("title", "🌍 World Time Map Бот");
+            out.put("features", java.util.Arrays.asList(
+                "🕐 **Мировые часы** - Отслеживайте время в городах по всему миру",
+                "🔁 **Конвертер времени** - Переводите время между любыми городами",
+                "🔢 **Разница во времени** - Разница в часах между городами",
+                "⏰ **Напоминалки** - Установите напоминания на определённое время",
+                "⭐ **Избранное** - Сохраняйте города для быстрого доступа",
+                "🏙️ **Свои города** - Создавайте города с любым часовым поясом",
+                "🌐 **Мультиязычность** - Переключение между русским и английским",
+                "💬 **Поддержка** - Связь с разработчиком"
+            ));
+            out.put("commands", java.util.Arrays.asList(
+                "/start - Запустить бота",
+                "/worldclock - Показать мировые часы",
+                "/convert - Конвертировать время из домашнего города",
+                "/diff - Разница во времени между городами",
+                "/remind - Создать напоминалку",
+                "/remind_list - Посмотреть напоминалку",
+                "/delete_remind - Удалить напоминалку",
+                "/home - Установить домашний город",
+                "/search_city - Поиск города",
+                "/view_favorites - Ваши избранные города",
+                "/create_custom - Создать свой город",
+                "/list_custom - Список своих городов",
+                "/delete_custom - Удалить свой город",
+                "/lang - Сменить язык",
+                "/help - Помощь"
+            ));
+        }
+        return out;
+    }
+
+    // ========== ИНФОРМАЦИЯ О ГОРОДЕ ==========
+    @GetMapping("/city/info")
+    public Map<String, Object> cityInfo(@RequestParam String key,
+                                       @RequestParam(required = false) String initData,
+                                       @RequestParam(required = false) String devChatId) {
+        Map<String, Object> out = new HashMap<>();
+        Long chatId = resolveChatId(initData, devChatId);
+        String lang = chatId != null ? langOf(chatId) : "ru";
+        
+        City c = cityService.findCity(key);
+        if (c == null) {
+            out.put("ok", false);
+            return out;
+        }
+        
+        out.put("ok", true);
+        out.put("city", cityJson(c, lang));
+        out.put("info", cityService.getCityInfo(c, lang));
+        out.put("country", cityService.getCountryLocalized(c, lang));
+        out.put("continent", cityService.getContinentLocalized(c, lang));
+        
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of(c.getTimezone()));
+        out.put("currentTime", now.toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+        out.put("currentDate", now.toLocalDate().toString());
+        out.put("dayOfWeek", now.getDayOfWeek().toString());
+        
+        return out;
+    }
 }
