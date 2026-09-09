@@ -3,7 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js">
+function renderSupport(){
+  $('#supportHistory').innerHTML='<div class="empty">...</div>';
+  api('/support').then(r=>{
+    if(!r||!r.length){$('#supportHistory').innerHTML=`<div class="empty">${T('empty')}</div>`;return;}
+    $('#supportHistory').innerHTML=r.map(m=>`<div class="card">
+      <div style="font-size:13px;color:var(--hint)">${new Date(m.date).toLocaleString()}</div>
+      <div style="margin:6px 0">💬 ${m.text}</div>
+      ${m.answered?`<div style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px"><strong style="color:var(--ok)">🤖 ${T('support_answered')}:</strong><br>${m.reply}</div>`:`<div style="color:var(--hint);font-size:12px">⏳ ${T('support_wait')}</div>`}
+    </div>`).join('');
+  });
+}
+$('#supportSend').onclick=async()=>{
+  const text=$('#supportText').value.trim();
+  if(!text){toast(T('err'));return;}
+  const r=await api('/support','POST',{text:text});
+  if(r&&r.ok){$('#supportText').value='';toast(T('support_sent'));renderSupport();}
+  else if(r&&r.error==='rate_limit'){toast(T('support_limit'));}
+  else toast(T('err'));
+};
+document.querySelectorAll('.tab').forEach(t=>{
+  const orig=t.onclick;
+  t.onclick=()=>{orig&&orig.call(t);if(t.dataset.tab==='support')renderSupport();};
+});
+
+</script>
 <style>
 :root{--bg:#1c1c2e;--card:#262640;--text:#ffffff;--hint:#8a8aa3;--accent:#5b8def;--danger:#e05b5b;--ok:#4fc379}
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
@@ -52,6 +77,7 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 <button class="tab" data-tab="convert"><span class="ico">🔁</span><span data-i18n="tab_convert"></span></button>
 <button class="tab" data-tab="reminders"><span class="ico">⏰</span><span data-i18n="tab_reminders"></span></button>
 <button class="tab" data-tab="cities"><span class="ico">⭐</span><span data-i18n="tab_cities"></span></button>
+<button class="tab" data-tab="support"><span class="ico">💬</span><span data-i18n="tab_support"></span></button>
 <button class="tab" data-tab="settings"><span class="ico">⚙️</span><span data-i18n="tab_settings"></span></button>
 </nav>
 <main>
@@ -86,6 +112,14 @@ h3{font-size:14px;color:var(--hint);margin:14px 0 8px}
 <button class="btn" id="custSave" data-i18n="save"></button>
 </section>
 
+<section id="page-support" class="page">
+<h3 data-i18n="support_title"></h3>
+<textarea id="supportText" data-i18n-ph="support_placeholder" style="width:100%;background:var(--card);border:1px solid var(--card);color:var(--text);padding:10px;border-radius:10px;font-size:14px;min-height:80px;resize:vertical"></textarea>
+<button class="btn" id="supportSend" data-i18n="support_send"></button>
+<h3 data-i18n="support_history"></h3>
+<div id="supportHistory"></div>
+</section>
+
 <section id="page-settings" class="page">
 <div class="row"><label data-i18n="language"></label><select id="setLang"><option value="ru">Русский</option><option value="en">English</option></select></div>
 <div class="row"><label data-i18n="time_format"></label><select id="setFormat"><option value="24">24h</option><option value="12">12h</option></select></div>
@@ -110,7 +144,7 @@ city:'Город',time:'Время',text:'Текст',save:'Сохранить',
 timezone:'Часовой пояс',language:'Язык',time_format:'Формат',reminder_saved:'Напоминалка сохранена!',reminder_deleted:'Напоминалка удалена',
 custom_created:'Город создан!',custom_deleted:'Город удалён',settings_saved:'Сохранено!',added:'Добавлено в избранное',
 removed:'Удалено из избранного',no_reminder:'Напоминалок нет',active_reminder:'Активная напоминалка',delete:'Удалить',
-days:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],diff:'Разница',empty:'Пусто',err:'Ошибка'},
+days:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],diff:'Разница',empty:'Пусто',err:'Ошибка',tab_support:'Поддержка',support_title:'Написать в поддержку',support_placeholder:'Опишите проблему...',support_send:'Отправить',support_sent:'Сообщение отправлено!',support_limit:'Не чаще 1 сообщения в минуту',support_history:'История обращений',support_wait:'Ожидает ответа',support_answered:'Отвечено'},
 en:{tab_clocks:'Clocks',tab_convert:'Convert',tab_reminders:'Reminders',tab_cities:'Cities',tab_settings:'Settings',
 home:'Home',favorites:'Favorite cities',custom:'My cities',search_ph:'Search city...',no_results:'Nothing found',
 not_set:'not set',convert_title:'Time converter',from:'From',to:'To',datetime:'Time',create_remind:'Create reminder',
@@ -118,7 +152,7 @@ city:'City',time:'Time',text:'Text',save:'Save',cancel:'Close',create_custom:'Cr
 timezone:'Timezone',language:'Language',time_format:'Format',reminder_saved:'Reminder saved!',reminder_deleted:'Reminder deleted',
 custom_created:'City created!',custom_deleted:'City deleted',settings_saved:'Saved!',added:'Added to favorites',
 removed:'Removed from favorites',no_reminder:'No reminders',active_reminder:'Active reminder',delete:'Delete',
-days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],diff:'Difference',empty:'Empty',err:'Error'}};
+days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],diff:'Difference',empty:'Empty',err:'Error',tab_support:'Support',support_title:'Contact support',support_placeholder:'Describe your issue...',support_send:'Send',support_sent:'Message sent!',support_limit:'Max 1 message per minute',support_history:'History',support_wait:'Waiting',support_answered:'Answered'}};
 const DAY_KEYS=['mon','tue','wed','thu','fri','sat','sun'];
 let S={lang:'ru',homeCity:null,favorites:[],customCities:[],reminder:null,timeFormat:'24'};
 let convFromCity=null,convToCity=null,remCitySel=null,custTzSel=null,pickerCb=null,selDays=new Set();
@@ -287,6 +321,31 @@ convFromCity=S.homeCity;
 applyLang();
 }
 init();
+
+function renderSupport(){
+  $('#supportHistory').innerHTML='<div class="empty">...</div>';
+  api('/support').then(r=>{
+    if(!r||!r.length){$('#supportHistory').innerHTML=`<div class="empty">${T('empty')}</div>`;return;}
+    $('#supportHistory').innerHTML=r.map(m=>`<div class="card">
+      <div style="font-size:13px;color:var(--hint)">${new Date(m.date).toLocaleString()}</div>
+      <div style="margin:6px 0">💬 ${m.text}</div>
+      ${m.answered?`<div style="margin-top:8px;padding:10px;background:var(--bg);border-radius:10px"><strong style="color:var(--ok)">🤖 ${T('support_answered')}:</strong><br>${m.reply}</div>`:`<div style="color:var(--hint);font-size:12px">⏳ ${T('support_wait')}</div>`}
+    </div>`).join('');
+  });
+}
+$('#supportSend').onclick=async()=>{
+  const text=$('#supportText').value.trim();
+  if(!text){toast(T('err'));return;}
+  const r=await api('/support','POST',{text:text});
+  if(r&&r.ok){$('#supportText').value='';toast(T('support_sent'));renderSupport();}
+  else if(r&&r.error==='rate_limit'){toast(T('support_limit'));}
+  else toast(T('err'));
+};
+document.querySelectorAll('.tab').forEach(t=>{
+  const orig=t.onclick;
+  t.onclick=()=>{orig&&orig.call(t);if(t.dataset.tab==='support')renderSupport();};
+});
+
 </script>
 </body>
 </html>
