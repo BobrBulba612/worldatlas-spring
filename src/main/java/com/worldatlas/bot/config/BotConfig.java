@@ -24,7 +24,8 @@ public class BotConfig {
     @Value("${proxy.port:0}")
     private int proxyPort;
 
-    private WorldAtlasBot botInstance;
+    // Статическая переменная для статического метода getBot()
+    private static WorldAtlasBot botInstance;
 
     @Bean
     public WorldAtlasBot worldAtlasBot(UserService userService,
@@ -60,7 +61,8 @@ public class BotConfig {
         return botInstance;
     }
 
-    public WorldAtlasBot getBot() {
+    // Статический метод для использования из ReminderScheduler
+    public static WorldAtlasBot getBot() {
         return botInstance;
     }
 }
