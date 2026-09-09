@@ -5,6 +5,7 @@ import com.worldatlas.bot.entity.CustomCity;
 import com.worldatlas.bot.entity.Reminder;
 import com.worldatlas.bot.entity.User;
 import com.worldatlas.bot.service.*;
+import com.worldatlas.bot.entity.SupportMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,16 +24,19 @@ public class WebAppController {
     private final CityService cityService;
     private final CustomCityService customCityService;
     private final ReminderService reminderService;
+    private final SupportService supportService;
 
     @Value("${telegram.bot.token}")
     private String botToken;
 
     public WebAppController(UserService userService, CityService cityService,
-                            CustomCityService customCityService, ReminderService reminderService) {
+                            CustomCityService customCityService, ReminderService reminderService,
+                            SupportService supportService) {
         this.userService = userService;
         this.cityService = cityService;
         this.customCityService = customCityService;
         this.reminderService = reminderService;
+        this.supportService = supportService;
     }
 
     // ========== ПРОВЕРКА ПОДПИСИ TELEGRAM ==========
@@ -269,6 +273,75 @@ public class WebAppController {
         if ("ru".equals(lang) || "en".equals(lang)) userService.setLanguage(chatId, lang);
         if ("12".equals(format) || "24".equals(format)) userService.setTimeFormat(chatId, format);
         out.put("ok", true);
+        return out;
+    }
+
+    // ========== ПОДДЕРЖКА ==========
+    @GetMapping("/support")
+    public List<Map<String, Object>> getSupport(@RequestParam(required = false) String initData,
+                                                 @RequestParam(required = false) String devChatId) {
+        List<Map<String, Object>> out = new java.util.ArrayList<>();
+        Long chatId = resolveChatId(initData, devChatId);
+        if (chatId == null) return out;
+        String lang = langOf(chatId);
+        for (SupportMessage m : supportService.getUserMessages(chatId)) {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", m.getId());
+            map.put("text", m.getText());
+            map.put("reply", m.getAdminReply());
+            map.put("answered", m.isAnswered());
+            map.put("date", m.getCreatedAt().toString());
+            out.add(map);
+        }
+        return out;
+    }
+
+    @PostMapping("/support")
+    public Map<String, Object> sendSupport(@RequestBody Map<String, Object> body) {
+        Map<String, Object> out = new java.util.HashMap<>();
+        Long chatId = chatIdFromBody(body);
+        if (chatId == null) { out.put("ok", false); return out; }
+        
+        if (!supportService.canSendMessage(chatId)) {
+            out.put("ok", false);
+            out.put("error", "rate_limit");
+            return out;
+        }
+        
+        String text = (String) body.get("text");
+        if (text == null || text.trim().isEmpty() || text.length() > 1000) {
+            out.put("ok", false);
+            return out;
+        }
+        
+        User user = userService.getUser(chatId);
+        String username = user != null ? user.getUsername() : "unknown";
+        String firstName = user != null && user.getFirstName() != null ? user.getFirstName() : "";
+        String displayName = !firstName.isEmpty() ? firstName : (username != null ? "@" + username : String.valueOf(chatId));
+        
+        SupportMessage msg = supportService.createMessage(chatId, username, text.trim());
+        
+        // Отправляем админу в Telegram
+        try {
+            com.worldatlas.bot.bot.WorldAtlasBot bot = com.worldatlas.bot.config.BotConfig.getBot();
+            if (bot != null) {
+                org.telegram.telegrambots.meta.api.methods.send.SendMessage sendMsg = 
+                    new org.telegram.telegrambots.meta.api.methods.send.SendMessage();
+                sendMsg.setChatId(UserService.MAIN_ADMIN_ID);
+                sendMsg.setText("🆘 *Новое сообщение в поддержку*\n\n" +
+                    "👤 " + displayName + " (`" + chatId + "`)\n" +
+                    "💬 " + text.trim() + "\n\n" +
+                    "Чтобы ответить, используй команду:\n" +
+                    "`/reply " + msg.getId() + " твой ответ`");
+                sendMsg.setParseMode("Markdown");
+                bot.execute(sendMsg);
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Не удалось отправить сообщение админу: " + e.getMessage());
+        }
+        
+        out.put("ok", true);
+        out.put("messageId", msg.getId());
         return out;
     }
 }

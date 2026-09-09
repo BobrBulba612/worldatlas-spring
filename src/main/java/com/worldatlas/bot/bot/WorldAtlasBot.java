@@ -8,6 +8,8 @@ import com.worldatlas.bot.service.CityService;
 import com.worldatlas.bot.service.LocalizationService;
 import com.worldatlas.bot.service.TimeService;
 import com.worldatlas.bot.service.CustomCityService;
+import com.worldatlas.bot.service.SupportService;
+import com.worldatlas.bot.entity.SupportMessage;
 import com.worldatlas.bot.service.ReminderService;
 import com.worldatlas.bot.service.ReminderScheduler;
 import com.worldatlas.bot.entity.CustomCity;
@@ -48,6 +50,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private final UserService userService;
     private final CityService cityService;
     private final ReminderService reminderService;
+    private final SupportService supportService;
     private final LocalizationService localization;
     private final TimeService timeService;
     private final CustomCityService customCityService;
@@ -73,7 +76,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private static final String STATE_WAITING_DELETE_CUSTOM_CITY = "WAITING_DELETE_CUSTOM_CITY";
     private static final String OWNER_SECRET_KEY = "DenisWorldAtlasSupreme2026!@#Owner";
 
-    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, String botUsername, String botToken) {
+    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, String botUsername, String botToken) {
         super(options, botToken);
         this.userService = userService;
         this.cityService = cityService;
@@ -81,6 +84,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         this.timeService = timeService;
         this.customCityService = customCityService;
         this.reminderService = reminderService;
+        this.supportService = supportService;
         this.botUsername = botUsername;
         this.botToken = botToken;
     
@@ -192,6 +196,46 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         
         String lang = user.getLanguage();
 
+        // Обработка команды /reply для админа
+        if (text.startsWith("/reply ") && chatId.equals(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID)) {
+            String rest = text.substring(7).trim();
+            int spaceIdx = rest.indexOf(' ');
+            if (spaceIdx > 0) {
+                try {
+                    Long msgId = Long.parseLong(rest.substring(0, spaceIdx));
+                    String replyText = rest.substring(spaceIdx + 1).trim();
+                    SupportMessage msg = supportService.getById(msgId);
+                    if (msg != null && !msg.isAnswered()) {
+                        supportService.answerMessage(msgId, replyText);
+                        
+                        // Отправляем ответ пользователю
+                        String userLang = "ru";
+                        User targetUser = userService.getUser(msg.getChatId());
+                        if (targetUser != null) userLang = targetUser.getLanguage();
+                        
+                        String answer = "en".equals(userLang) ?
+                            "💬 *Support replied:*\n\n" + replyText :
+                            "💬 *Поддержка ответила:*\n\n" + replyText;
+                            
+                        SendMessage userMsg = new SendMessage();
+                        userMsg.setChatId(msg.getChatId());
+                        userMsg.setText("🤖 " + answer);
+                        userMsg.setParseMode("Markdown");
+                        execute(userMsg);
+                        
+                        sendMsg(chatId, "✅ Ответ отправлен пользователю " + msg.getChatId());
+                    } else {
+                        sendMsg(chatId, "❌ Сообщение не найдено или уже отвечено");
+                    }
+                } catch (Exception e) {
+                    sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
+                }
+            } else {
+                sendMsg(chatId, "Используй: /reply ID_СООБЩЕНИЯ твой ответ");
+            }
+            return;
+        }
+        
         // ========== ПРОВЕРКА ПОДПИСКИ НА КАНАЛ ==========
         try {
             org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember getMember = 
