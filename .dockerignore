@@ -1,0 +1,11 @@
+.git
+.github
+.gitignore
+.idea
+*.iml
+.vscode
+target
+data
+*.log
+DOCKERFILE.md
+README.md
