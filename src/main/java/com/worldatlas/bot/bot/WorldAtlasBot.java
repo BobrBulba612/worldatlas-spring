@@ -126,6 +126,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 new BotCommand("lang", "Change language"),
                 new BotCommand("download", "Download the app"),
                 new BotCommand("help", "Bot help"),
+                new BotCommand("support", "Contact support"),
                 new BotCommand("cancel", "Cancel current action")
             );
             
@@ -1131,6 +1132,37 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             sendMsg(chatId, sb.toString());
             return;
         }
+        // ========== ОБРАБОТКА КНОПКИ ПОДДЕРЖКА ==========
+        if (text.equals("💬 Поддержка") || text.equals("💬 Support") || text.equals("/support")) {
+            SendMessage msg = new SendMessage();
+            msg.setChatId(chatId);
+            if ("en".equals(lang)) {
+                msg.setText("💬 <b>Support</b>\n\n" +
+                    "Need help? Contact us directly!\n\n" +
+                    "📱 <b>Option 1:</b> Use Mini App\n" +
+                    "Press the 🌍 Mini App button next to message field and go to Support tab.\n\n" +
+                    "💬 <b>Option 2:</b> Write here\n" +
+                    "Just type your question and I'll forward it to the developer.\n\n" +
+                    "📧 Response time: up to 24 hours");
+            } else {
+                msg.setText("💬 <b>Поддержка</b>\n\n" +
+                    "Нужна помощь? Свяжитесь с нами!\n\n" +
+                    "📱 <b>Способ 1:</b> Через Mini App\n" +
+                    "Нажмите кнопку 🌍 Mini App слева от поля ввода и перейдите во вкладку «Поддержка».\n\n" +
+                    "💬 <b>Способ 2:</b> Напишите здесь\n" +
+                    "Просто напишите свой вопрос — я перешлю его разработчику.\n\n" +
+                    "📧 Время ответа: до 24 часов");
+            }
+            msg.setParseMode("HTML");
+            msg.setReplyMarkup(getMainMenuKeyboard(lang));
+            try {
+                execute(msg);
+            } catch (Exception e) {
+                System.out.println("⚠️ Ошибка отправки сообщения поддержки: " + e.getMessage());
+            }
+            return;
+        }
+
         if (text.equals("🏙️ Пользовательский город") || text.equals("🏙️ Custom City")) {
             String desc = "en".equals(lang) ?
                 "🏙️ <b>Custom City</b>\n\nA custom city is a city that is not in our database.\n\nYou can create your own city by specifying:\n• Name (must be unique)\n• Timezone (e.g., +07 or -11)\n\nTo create a custom city, use the button below:" :
@@ -1930,6 +1962,9 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             rows.add(createRow("🔍 Поиск", "⭐ Избранное"));
             rows.add(createRow("📥 Скачать", "⚙️ Настройки"));
             rows.add(createRow("🏙️ Пользовательский город", "📖 Помощь"));
+            KeyboardRow supportRow = new KeyboardRow();
+            supportRow.add(new KeyboardButton("💬 Поддержка"));
+            rows.add(supportRow);
         }
         
         // Добавляем отдельный ряд с кнопкой Отмена
