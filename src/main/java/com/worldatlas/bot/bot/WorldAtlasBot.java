@@ -203,40 +203,95 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             int spaceIdx = rest.indexOf(' ');
             if (spaceIdx > 0) {
                 try {
-                    Long msgId = Long.parseLong(rest.substring(0, spaceIdx));
+                    String idStr = rest.substring(0, spaceIdx);
                     String replyText = rest.substring(spaceIdx + 1).trim();
-                    SupportMessage msg = supportService.getById(msgId);
-                    if (msg != null && !msg.isAnswered()) {
-                        supportService.answerMessage(msgId, replyText);
+                    
+                    // Пробуем как chatId (прямой ответ пользователю)
+                    try {
+                        Long targetChatId = Long.parseLong(idStr);
+                        User targetUser = userService.getUser(targetChatId);
+                        String userLang = targetUser != null ? targetUser.getLanguage() : "ru";
                         
-                        // Отправляем ответ пользователю
-                        String userLang = "ru";
-                        User targetUser = userService.getUser(msg.getChatId());
-                        if (targetUser != null) userLang = targetUser.getLanguage();
-                        
-                        String answer = "en".equals(userLang) ?
-                            "💬 *Support replied:*\n\n" + replyText :
-                            "💬 *Поддержка ответила:*\n\n" + replyText;
-                            
                         SendMessage userMsg = new SendMessage();
-                        userMsg.setChatId(msg.getChatId());
-                        userMsg.setText("🤖 " + answer);
+                        userMsg.setChatId(targetChatId);
+                        userMsg.setText("🤖 " + ("en".equals(userLang) ? 
+                            "*Support replied:*\n\n" + replyText :
+                            "*Поддержка ответила:*\n\n" + replyText));
                         userMsg.setParseMode("Markdown");
+                        userMsg.setReplyMarkup(getMainMenuKeyboard(userLang));
                         execute(userMsg);
                         
-                        sendMsg(chatId, "✅ Ответ отправлен пользователю " + msg.getChatId());
-                    } else {
-                        sendMsg(chatId, "❌ Сообщение не найдено или уже отвечено");
+                        sendMsg(chatId, "✅ Ответ отправлен пользователю " + targetChatId);
+                        return;
+                    } catch (NumberFormatException ignored) {}
+                    
+                    // Пробуем как messageId (из Mini App)
+                    try {
+                        Long msgId = Long.parseLong(idStr);
+                        SupportMessage msg = supportService.getById(msgId);
+                        if (msg != null && !msg.isAnswered()) {
+                            supportService.answerMessage(msgId, replyText);
+                            
+                            User targetUser = userService.getUser(msg.getChatId());
+                            String userLang = targetUser != null ? targetUser.getLanguage() : "ru";
+                            
+                            SendMessage userMsg = new SendMessage();
+                            userMsg.setChatId(msg.getChatId());
+                            userMsg.setText("🤖 " + ("en".equals(userLang) ?
+                                "*Support replied:*\n\n" + replyText :
+                                "*Поддержка ответила:*\n\n" + replyText));
+                            userMsg.setParseMode("Markdown");
+                            userMsg.setReplyMarkup(getMainMenuKeyboard(userLang));
+                            execute(userMsg);
+                            
+                            sendMsg(chatId, "✅ Ответ отправлен пользователю " + msg.getChatId());
+                        } else {
+                            sendMsg(chatId, "❌ Сообщение не найдено или уже отвечено");
+                        }
+                    } catch (Exception e) {
+                        sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
                     }
                 } catch (Exception e) {
                     sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
                 }
             } else {
-                sendMsg(chatId, "Используй: /reply ID_СООБЩЕНИЯ твой ответ");
+                sendMsg(chatId, "Используй:\n`/reply CHAT_ID твой ответ`\nили\n`/reply MSG_ID твой ответ`");
             }
             return;
         }
         
+        // ========== ПЕРЕСЫЛКА ТЕКСТА АДМИНУ (ПОДДЕРЖКА) ==========
+        // Если это обычное текстовое сообщение (не команда) и пользователь ранее нажимал "💬 Поддержка"
+        if (!text.startsWith("/") && !text.startsWith("🔍") && !text.startsWith("⭐") && !text.startsWith("📥") 
+            && !text.startsWith("⚙️") && !text.startsWith("🏙️") && !text.startsWith("📖") && !text.startsWith("❌")
+            && !text.startsWith("💬")) {
+            
+            // Пересылаем сообщение админу
+            try {
+                User sender = userService.getUser(chatId);
+                String displayName = sender != null && sender.getFirstName() != null ? sender.getFirstName() : "@" + (sender != null && sender.getUsername() != null ? sender.getUsername() : chatId);
+                
+                SendMessage adminMsg = new SendMessage();
+                adminMsg.setChatId(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID);
+                adminMsg.setText("📨 <b>Новое сообщение от пользователя</b>\n\n" +
+                    "👤 " + displayName + " (`" + chatId + "`)\n" +
+                    "💬 " + text + "\n\n" +
+                    "Чтобы ответить:\n" +
+                    "`/reply " + chatId + " твой ответ`");
+                adminMsg.setParseMode("Markdown");
+                execute(adminMsg);
+                
+                // Подтверждаем пользователю
+                sendMsg(chatId, "en".equals(lang) ? 
+                    "✅ Your message has been sent to support. We'll reply within 24 hours." :
+                    "✅ Ваше сообщение отправлено в поддержку. Ответим в течение 24 часов.", 
+                    getMainMenuKeyboard(lang));
+            } catch (Exception e) {
+                System.out.println("⚠️ Не удалось переслать сообщение админу: " + e.getMessage());
+            }
+            return;
+        }
+
         // ========== ПРОВЕРКА ПОДПИСКИ НА КАНАЛ ==========
         try {
             org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember getMember = 
