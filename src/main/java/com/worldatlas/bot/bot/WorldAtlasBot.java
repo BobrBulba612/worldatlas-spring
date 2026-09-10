@@ -260,38 +260,6 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
         
-        // ========== ПЕРЕСЫЛКА ТЕКСТА АДМИНУ (ПОДДЕРЖКА) ==========
-        // Если это обычное текстовое сообщение (не команда) и пользователь ранее нажимал "💬 Поддержка"
-        if (!text.startsWith("/") && !text.startsWith("🔍") && !text.startsWith("⭐") && !text.startsWith("📥") 
-            && !text.startsWith("⚙️") && !text.startsWith("🏙️") && !text.startsWith("📖") && !text.startsWith("❌")
-            && !text.startsWith("💬")) {
-            
-            // Пересылаем сообщение админу
-            try {
-                User sender = userService.getUser(chatId);
-                String displayName = sender != null && sender.getFirstName() != null ? sender.getFirstName() : "@" + (sender != null && sender.getUsername() != null ? sender.getUsername() : chatId);
-                
-                SendMessage adminMsg = new SendMessage();
-                adminMsg.setChatId(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID);
-                adminMsg.setText("📨 <b>Новое сообщение от пользователя</b>\n\n" +
-                    "👤 " + displayName + " (`" + chatId + "`)\n" +
-                    "💬 " + text + "\n\n" +
-                    "Чтобы ответить:\n" +
-                    "`/reply " + chatId + " твой ответ`");
-                adminMsg.setParseMode("Markdown");
-                execute(adminMsg);
-                
-                // Подтверждаем пользователю
-                sendMsg(chatId, "en".equals(lang) ? 
-                    "✅ Your message has been sent to support. We'll reply within 24 hours." :
-                    "✅ Ваше сообщение отправлено в поддержку. Ответим в течение 24 часов.", 
-                    getMainMenuKeyboard(lang));
-            } catch (Exception e) {
-                System.out.println("⚠️ Не удалось переслать сообщение админу: " + e.getMessage());
-            }
-            return;
-        }
-
         // ========== ПРОВЕРКА ПОДПИСКИ НА КАНАЛ ==========
         try {
             org.telegram.telegrambots.meta.api.methods.groupadministration.GetChatMember getMember = 
@@ -1187,33 +1155,45 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             sendMsg(chatId, sb.toString());
             return;
         }
-        // ========== ОБРАБОТКА КНОПКИ ПОДДЕРЖКА ==========
+        // ========== ПОДДЕРЖКА ==========
         if (text.equals("💬 Поддержка") || text.equals("💬 Support") || text.equals("/support")) {
-            SendMessage msg = new SendMessage();
-            msg.setChatId(chatId);
-            if ("en".equals(lang)) {
-                msg.setText("💬 <b>Support</b>\n\n" +
-                    "Need help? Contact us directly!\n\n" +
-                    "📱 <b>Option 1:</b> Use Mini App\n" +
-                    "Press the 🌍 Mini App button next to message field and go to Support tab.\n\n" +
-                    "💬 <b>Option 2:</b> Write here\n" +
-                    "Just type your question and I'll forward it to the developer.\n\n" +
-                    "📧 Response time: up to 24 hours");
-            } else {
-                msg.setText("💬 <b>Поддержка</b>\n\n" +
-                    "Нужна помощь? Свяжитесь с нами!\n\n" +
-                    "📱 <b>Способ 1:</b> Через Mini App\n" +
-                    "Нажмите кнопку 🌍 Mini App слева от поля ввода и перейдите во вкладку «Поддержка».\n\n" +
-                    "💬 <b>Способ 2:</b> Напишите здесь\n" +
-                    "Просто напишите свой вопрос — я перешлю его разработчику.\n\n" +
-                    "📧 Время ответа: до 24 часов");
+            sendMsg(chatId, "en".equals(lang) ?
+                "💬 Support\n\nSend your question like this:\n/support your question\n\nExample:\n/support the time converter is not working\n\n📧 Response time: up to 24 hours. Max 1 message per minute." :
+                "💬 Поддержка\n\nОтправьте ваш вопрос так:\n/support ваш вопрос\n\nПример:\n/support не работает конвертер времени\n\n📧 Время ответа: до 24 часов. Не чаще 1 сообщения в минуту.",
+                getMainMenuKeyboard(lang));
+            return;
+        }
+
+        if (text.startsWith("/support ")) {
+            String question = text.substring(9).trim();
+            if (question.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ? "Enter your question:\n/support your question" : "Введите текст вопроса:\n/support ваш вопрос");
+                return;
             }
-            msg.setParseMode("HTML");
-            msg.setReplyMarkup(getMainMenuKeyboard(lang));
+            if (!supportService.canSendMessage(chatId)) {
+                sendMsg(chatId, "en".equals(lang) ? "⏳ Too many messages. Try again in a minute." : "⏳ Слишком часто. Попробуйте через минуту.");
+                return;
+            }
             try {
-                execute(msg);
+                User sender = userService.getUser(chatId);
+                String displayName = sender != null && sender.getFirstName() != null ? sender.getFirstName() : "@" + (sender != null && sender.getUsername() != null ? sender.getUsername() : String.valueOf(chatId));
+                SupportMessage msg = supportService.createMessage(chatId, sender != null ? sender.getUsername() : null, question);
+                
+                SendMessage adminMsg = new SendMessage();
+                adminMsg.setChatId(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID);
+                adminMsg.setText("🆘 <b>Обращение в поддержку #" + msg.getId() + "</b>\n\n" +
+                    "👤 " + displayName + " (<code>" + chatId + "</code>)\n" +
+                    "💬 " + question + "\n\n" +
+                    "Ответить:\n<code>/reply " + msg.getId() + " ваш ответ</code>\nили напрямую:\n<code>/reply " + chatId + " ваш ответ</code>");
+                adminMsg.setParseMode("HTML");
+                execute(adminMsg);
+                
+                sendMsg(chatId, "en".equals(lang) ?
+                    "✅ Your message has been sent to support! We'll reply within 24 hours." :
+                    "✅ Ваше сообщение отправлено в поддержку! Ответим в течение 24 часов.",
+                    getMainMenuKeyboard(lang));
             } catch (Exception e) {
-                System.out.println("⚠️ Ошибка отправки сообщения поддержки: " + e.getMessage());
+                sendMsg(chatId, "❌ " + e.getMessage());
             }
             return;
         }
