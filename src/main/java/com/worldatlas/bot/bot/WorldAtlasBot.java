@@ -1993,6 +1993,9 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             rows.add(createRow("🔍 Search", "⭐ Favorites"));
             rows.add(createRow("📥 Download", "⚙️ Settings"));
             rows.add(createRow("🏙️ Custom City", "📖 Help"));
+            KeyboardRow supportRow = new KeyboardRow();
+            supportRow.add(new KeyboardButton("💬 Support"));
+            rows.add(supportRow);
         } else {
             rows.add(createRow("🔍 Поиск", "⭐ Избранное"));
             rows.add(createRow("📥 Скачать", "⚙️ Настройки"));
