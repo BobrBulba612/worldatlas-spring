@@ -1993,22 +1993,13 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             rows.add(createRow("🔍 Search", "⭐ Favorites"));
             rows.add(createRow("📥 Download", "⚙️ Settings"));
             rows.add(createRow("🏙️ Custom City", "📖 Help"));
-            KeyboardRow supportRow = new KeyboardRow();
-            supportRow.add(new KeyboardButton("💬 Support"));
-            rows.add(supportRow);
+            rows.add(createRow("💬 Support", "❌ Cancel"));
         } else {
             rows.add(createRow("🔍 Поиск", "⭐ Избранное"));
             rows.add(createRow("📥 Скачать", "⚙️ Настройки"));
             rows.add(createRow("🏙️ Пользовательский город", "📖 Помощь"));
-            KeyboardRow supportRow = new KeyboardRow();
-            supportRow.add(new KeyboardButton("💬 Поддержка"));
-            rows.add(supportRow);
+            rows.add(createRow("💬 Поддержка", "❌ Отмена"));
         }
-        
-        // Добавляем отдельный ряд с кнопкой Отмена
-        KeyboardRow cancelRow = new KeyboardRow();
-        cancelRow.add(new KeyboardButton("en".equals(lang) ? "❌ Cancel" : "❌ Отмена"));
-        rows.add(cancelRow);
         
         markup.setKeyboard(rows);
         return markup;
