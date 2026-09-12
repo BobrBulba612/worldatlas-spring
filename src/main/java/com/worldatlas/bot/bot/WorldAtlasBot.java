@@ -2372,6 +2372,148 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 supportService.deleteById(ticketId);
                 editMessageText(chatId, messageId, "✅ Deleted");
             }
+
+            else if (data.startsWith("user_promote_")) {
+                answerCallback(callbackId);
+                String targetId = data.replace("user_promote_", "");
+                User current = userService.getUser(chatId);
+                
+                if (current == null || (current.getRole() != User.Role.OWNER && current.getRole() != User.Role.ADMIN)) {
+                    editMessageText(chatId, messageId, "❌ No permission.");
+                    return;
+                }
+                
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> kb = new ArrayList<>();
+                
+                List<InlineKeyboardButton> r1 = new ArrayList<>();
+                r1.add(createInlineButton("🛡️ Moderator", "user_set_role_" + targetId + "_MODERATOR"));
+                r1.add(createInlineButton("👑 Admin", "user_set_role_" + targetId + "_ADMIN"));
+                kb.add(r1);
+                
+                if (current.getRole() == User.Role.OWNER) {
+                    List<InlineKeyboardButton> r2 = new ArrayList<>();
+                    r2.add(createInlineButton("💎 Owner", "user_set_role_" + targetId + "_OWNER"));
+                    kb.add(r2);
+                }
+                
+                List<InlineKeyboardButton> rc = new ArrayList<>();
+                rc.add(createInlineButton("❌ Cancel", "user_cancel_" + targetId));
+                kb.add(rc);
+                
+                markup.setKeyboard(kb);
+                
+                EditMessageText edit = new EditMessageText();
+                edit.setChatId(chatId);
+                edit.setMessageId(messageId);
+                edit.setText("⬆️ Select role for <code>" + targetId + "</code>:");
+                edit.setParseMode("HTML");
+                edit.setReplyMarkup(markup);
+                execute(edit);
+            }
+            
+            else if (data.startsWith("user_demote_")) {
+                answerCallback(callbackId);
+                Long targetId = Long.parseLong(data.replace("user_demote_", ""));
+                User current = userService.getUser(chatId);
+                User target = userService.getUser(targetId);
+                
+                if (current == null || target == null) {
+                    editMessageText(chatId, messageId, "❌ Error.");
+                    return;
+                }
+                
+                if ((target.getRole() == User.Role.OWNER || target.getRole() == User.Role.ADMIN) && current.getRole() != User.Role.OWNER) {
+                    editMessageText(chatId, messageId, "❌ Only owner can demote admins.");
+                    return;
+                }
+                
+                User.Role newRole = switch (target.getRole()) {
+                    case OWNER -> User.Role.ADMIN;
+                    case ADMIN -> User.Role.MODERATOR;
+                    case MODERATOR -> User.Role.USER;
+                    default -> User.Role.USER;
+                };
+                
+                target.setRole(newRole);
+                userService.saveUser(target);
+                editMessageText(chatId, messageId, "✅ Demoted to " + newRole);
+            }
+            
+            else if (data.startsWith("user_set_role_")) {
+                answerCallback(callbackId);
+                String[] parts = data.split("_");
+                if (parts.length >= 5) {
+                    Long targetId = Long.parseLong(parts[3]);
+                    User.Role newRole = User.Role.valueOf(parts[4]);
+                    User current = userService.getUser(chatId);
+                    User target = userService.getUser(targetId);
+                    
+                    if (current == null || target == null) {
+                        editMessageText(chatId, messageId, "❌ Error.");
+                        return;
+                    }
+                    
+                    if (newRole == User.Role.OWNER && current.getRole() != User.Role.OWNER) {
+                        editMessageText(chatId, messageId, "❌ Only owner can promote to owner.");
+                        return;
+                    }
+                    
+                    if (current.getRole() == User.Role.ADMIN && (newRole == User.Role.ADMIN || newRole == User.Role.OWNER)) {
+                        editMessageText(chatId, messageId, "❌ Admins can only promote to moderator.");
+                        return;
+                    }
+                    
+                    target.setRole(newRole);
+                    userService.saveUser(target);
+                    editMessageText(chatId, messageId, "✅ Promoted to " + newRole);
+                }
+            }
+            
+            else if (data.startsWith("user_ban_")) {
+                answerCallback(callbackId);
+                Long targetId = Long.parseLong(data.replace("user_ban_", ""));
+                User current = userService.getUser(chatId);
+                User target = userService.getUser(targetId);
+                
+                if (current == null || target == null) {
+                    editMessageText(chatId, messageId, "❌ Error.");
+                    return;
+                }
+                
+                if ((target.getRole() == User.Role.OWNER || target.getRole() == User.Role.ADMIN) && current.getRole() != User.Role.OWNER) {
+                    editMessageText(chatId, messageId, "❌ Only owner can ban admins.");
+                    return;
+                }
+                
+                target.setBanned(true);
+                userService.saveUser(target);
+                editMessageText(chatId, messageId, "🚫 User banned.");
+            }
+            
+            else if (data.startsWith("user_unban_")) {
+                answerCallback(callbackId);
+                Long targetId = Long.parseLong(data.replace("user_unban_", ""));
+                User target = userService.getUser(targetId);
+                
+                if (target != null) {
+                    target.setBanned(false);
+                    userService.saveUser(target);
+                    editMessageText(chatId, messageId, "✅ User unbanned.");
+                }
+            }
+            
+            else if (data.startsWith("user_cancel_")) {
+                answerCallback(callbackId);
+                try {
+                    org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage del = 
+                        new org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage();
+                    del.setChatId(chatId);
+                    del.setMessageId(messageId);
+                    execute(del);
+                } catch (Exception ignored) {}
+            }
+
         } catch (Exception e) {
             answerCallback(callbackId);
         }

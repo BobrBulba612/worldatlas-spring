@@ -123,4 +123,9 @@ public class UserService {
     public boolean isSubscribed(Long chatId) {
         return userRepository.findById(chatId).map(User::isSubscribed).orElse(false);
     }
+
+    public User saveUser(User user) {
+        return userRepository.save(user);
+    }
+
 }
