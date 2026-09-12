@@ -1,7 +1,7 @@
 package com.worldatlas.bot.service;
 
 import com.worldatlas.bot.entity.SupportMessage;
-import com.worldatlas.bot.entity.User;
+import com.worldatlas.bot.entity.SupportMessage.TicketStatus;
 import com.worldatlas.bot.repository.SupportMessageRepository;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +28,7 @@ public class SupportService {
         msg.setChatId(chatId);
         msg.setUsername(username != null ? username : "unknown");
         msg.setText(text);
+        msg.setStatus(TicketStatus.NEW);
         return repository.save(msg);
     }
     
@@ -35,7 +36,21 @@ public class SupportService {
         return repository.findById(messageId).map(msg -> {
             msg.setAdminReply(reply);
             msg.setAnswered(true);
+            msg.setStatus(TicketStatus.RESOLVED);
             msg.setAnsweredAt(LocalDateTime.now());
+            return repository.save(msg);
+        }).orElse(null);
+    }
+    
+    public SupportMessage updateStatus(Long messageId, TicketStatus status) {
+        return repository.findById(messageId).map(msg -> {
+            msg.setStatus(status);
+            if (status == TicketStatus.IN_PROGRESS) {
+                msg.setAnswered(false);
+            } else if (status == TicketStatus.RESOLVED) {
+                msg.setAnswered(true);
+                msg.setAnsweredAt(LocalDateTime.now());
+            }
             return repository.save(msg);
         }).orElse(null);
     }
@@ -46,6 +61,10 @@ public class SupportService {
     
     public List<SupportMessage> getUnanswered() {
         return repository.findByAnsweredFalseOrderByCreatedAtAsc();
+    }
+    
+    public List<SupportMessage> getAllTickets() {
+        return repository.findAllByOrderByCreatedAtDesc();
     }
     
     public SupportMessage getById(Long id) {

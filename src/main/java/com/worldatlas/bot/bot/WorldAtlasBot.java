@@ -1198,6 +1198,201 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
 
+        // ========== АДМИН-ПАНЕЛЬ ==========
+        if ((text.equals("/admin") || text.equals("/adminhelp")) && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                long totalUsers = userService.getAllUsers().size();
+                long totalTickets = supportService.getAllTickets().size();
+                long newTickets = supportService.getUnanswered().size();
+                
+                String body = "en".equals(lang) ?
+                    "🛡️ <b>ADMIN CONTROL PANEL</b>\n\n" +
+                    "📊 <b>Quick Stats:</b>\n" +
+                    "• 👥 Total users: <b>" + totalUsers + "</b>\n" +
+                    "• 📨 Total tickets: <b>" + totalTickets + "</b>\n" +
+                    "• 🆕 New tickets: <b>" + newTickets + "</b>\n\n" +
+                    "🎯 <b>Available Commands:</b>\n" +
+                    "• /stats - Detailed statistics\n" +
+                    "• /tickets - All support tickets with buttons\n" +
+                    "• /users - List of users\n" +
+                    "• /reply <ID> <text> - Reply to ticket or user\n\n" +
+                    "💡 Click buttons below for quick actions:" :
+                    "🛡️ <b>ПАНЕЛЬ УПРАВЛЕНИЯ</b>\n\n" +
+                    "📊 <b>Быстрая статистика:</b>\n" +
+                    "• 👥 Всего пользователей: <b>" + totalUsers + "</b>\n" +
+                    "• 📨 Всего обращений: <b>" + totalTickets + "</b>\n" +
+                    "• 🆕 Новых обращений: <b>" + newTickets + "</b>\n\n" +
+                    "🎯 <b>Доступные команды:</b>\n" +
+                    "• /stats - Подробная статистика\n" +
+                    "• /tickets - Все обращения с кнопками\n" +
+                    "• /users - Список пользователей\n" +
+                    "• /reply <ID> <текст> - Ответить на обращение\n\n" +
+                    "💡 Нажмите кнопки ниже для быстрых действий:";
+                
+                SendMessage msg = new SendMessage();
+                msg.setChatId(chatId);
+                msg.setText(body);
+                msg.setParseMode("HTML");
+                
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+                
+                List<InlineKeyboardButton> row1 = new ArrayList<>();
+                row1.add(createInlineButton("📊 " + ("en".equals(lang) ? "Statistics" : "Статистика"), "admin_stats"));
+                row1.add(createInlineButton("📨 " + ("en".equals(lang) ? "Tickets" : "Обращения"), "admin_tickets"));
+                keyboard.add(row1);
+                
+                List<InlineKeyboardButton> row2 = new ArrayList<>();
+                row2.add(createInlineButton("👥 " + ("en".equals(lang) ? "Users" : "Пользователи"), "admin_users"));
+                row2.add(createInlineButton("❌ " + ("en".equals(lang) ? "Close" : "Закрыть"), "admin_close"));
+                keyboard.add(row2);
+                
+                markup.setKeyboard(keyboard);
+                msg.setReplyMarkup(markup);
+                
+                execute(msg);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+        
+        // ========== КОМАНДА /stats ==========
+        if (text.equals("/stats") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                long totalUsers = userService.getAllUsers().size();
+                long totalReminders = reminderService.getAllReminders().size();
+                long totalTickets = supportService.getAllTickets().size();
+                long newTickets = supportService.getUnanswered().size();
+                long totalCities = cityService.count();
+                
+                String body = "en".equals(lang) ?
+                    "📊 <b>DETAILED STATISTICS</b>\n\n" +
+                    "👥 Users: <b>" + totalUsers + "</b>\n" +
+                    "⏰ Active reminders: <b>" + totalReminders + "</b>\n" +
+                    "📨 Support tickets: <b>" + totalTickets + "</b>\n" +
+                    "🆕 New tickets: <b>" + newTickets + "</b>\n" +
+                    "🌍 Cities in DB: <b>" + totalCities + "</b>\n\n" +
+                    "🟢 Bot status: <b>ONLINE 24/7</b>\n" +
+                    "🗄️ Database: <b>Neon PostgreSQL</b>\n" +
+                    "🚀 Hosting: <b>Render Cloud</b>" :
+                    "📊 <b>ПОДРОБНАЯ СТАТИСТИКА</b>\n\n" +
+                    "👥 Пользователей: <b>" + totalUsers + "</b>\n" +
+                    "⏰ Активных напоминаний: <b>" + totalReminders + "</b>\n" +
+                    "📨 Обращений в поддержку: <b>" + totalTickets + "</b>\n" +
+                    "🆕 Новых обращений: <b>" + newTickets + "</b>\n" +
+                    "🌍 Городов в базе: <b>" + totalCities + "</b>\n\n" +
+                    "🟢 Статус бота: <b>ОНЛАЙН 24/7</b>\n" +
+                    "🗄️ База данных: <b>Neon PostgreSQL</b>\n" +
+                    "🚀 Хостинг: <b>Render Cloud</b>";
+                
+                sendMsg(chatId, body);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+        
+        // ========== КОМАНДА /tickets ==========
+        if (text.equals("/tickets") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                List<SupportMessage> tickets = supportService.getAllTickets();
+                
+                if (tickets.isEmpty()) {
+                    sendMsg(chatId, "en".equals(lang) ? "✅ No support tickets." : "✅ Нет обращений в поддержку.");
+                    return;
+                }
+                
+                int count = 0;
+                for (int i = tickets.size() - 1; i >= 0 && count < 10; i--, count++) {
+                    SupportMessage t = tickets.get(i);
+                    
+                    String statusEmoji = switch (t.getStatus()) {
+                        case NEW -> "🆕";
+                        case IN_PROGRESS -> "⏳";
+                        case RESOLVED -> "✅";
+                    };
+                    
+                    String statusText = switch (t.getStatus()) {
+                        case NEW -> "en".equals(lang) ? "New" : "Новое";
+                        case IN_PROGRESS -> "en".equals(lang) ? "In Progress" : "В процессе";
+                        case RESOLVED -> "en".equals(lang) ? "Resolved" : "Решено";
+                    };
+                    
+                    String body = statusEmoji + " <b>Ticket #" + t.getId() + "</b> | " + statusText + "\n\n" +
+                        "👤 User: <code>" + t.getChatId() + "</code>\n" +
+                        "💬 " + (t.getText().length() > 100 ? t.getText().substring(0, 100) + "..." : t.getText()) + "\n" +
+                        "📅 " + t.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm"));
+                    
+                    if (t.isAnswered() && t.getAdminReply() != null) {
+                        body += "\n\n✅ <b>Reply:</b> " + t.getAdminReply();
+                    }
+                    
+                    SendMessage msg = new SendMessage();
+                    msg.setChatId(chatId);
+                    msg.setText(body);
+                    msg.setParseMode("HTML");
+                    
+                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                    List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+                    
+                    List<InlineKeyboardButton> row1 = new ArrayList<>();
+                    row1.add(createInlineButton("💬 " + ("en".equals(lang) ? "Reply" : "Ответить"), "ticket_reply_" + t.getId()));
+                    keyboard.add(row1);
+                    
+                    List<InlineKeyboardButton> row2 = new ArrayList<>();
+                    row2.add(createInlineButton("🆕 " + ("en".equals(lang) ? "New" : "Новое"), "ticket_status_" + t.getId() + "_NEW"));
+                    row2.add(createInlineButton("⏳ " + ("en".equals(lang) ? "In Progress" : "В процессе"), "ticket_status_" + t.getId() + "_IN_PROGRESS"));
+                    row2.add(createInlineButton("✅ " + ("en".equals(lang) ? "Resolved" : "Решено"), "ticket_status_" + t.getId() + "_RESOLVED"));
+                    keyboard.add(row2);
+                    
+                    markup.setKeyboard(keyboard);
+                    msg.setReplyMarkup(markup);
+                    
+                    execute(msg);
+                }
+                
+                sendMsg(chatId, "en".equals(lang) ? 
+                    "📨 Showing last " + count + " tickets." :
+                    "📨 Показано последних " + count + " обращений.");
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+        
+        // ========== КОМАНДА /users ==========
+        if (text.equals("/users") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                List<User> users = userService.getAllUsers();
+                StringBuilder body = new StringBuilder();
+                body.append("en".equals(lang) ? "👥 <b>LAST 20 USERS</b>\n\n" : "👥 <b>ПОСЛЕДНИЕ 20 ПОЛЬЗОВАТЕЛЕЙ</b>\n\n");
+                
+                int count = 0;
+                for (int i = users.size() - 1; i >= 0 && count < 20; i--, count++) {
+                    User u = users.get(i);
+                    String name = u.getFirstName() != null ? u.getFirstName() : (u.getUsername() != null ? "@" + u.getUsername() : "ID:" + u.getChatId());
+                    String roleEmoji = switch (u.getRole()) {
+                        case OWNER -> "💎";
+                        case ADMIN -> "👑";
+                        case MODERATOR -> "🛡️";
+                        case USER -> "👤";
+                    };
+                    body.append(count + 1).append(". ").append(roleEmoji).append(" ").append(name).append(" (<code>").append(u.getChatId()).append("</code>)\n");
+                }
+                
+                if (users.isEmpty()) {
+                    body.append("en".equals(lang) ? "No users yet." : "Пока нет пользователей.");
+                }
+                
+                sendMsg(chatId, body.toString());
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+
+
         if (text.equals("🏙️ Пользовательский город") || text.equals("🏙️ Custom City")) {
             String desc = "en".equals(lang) ?
                 "🏙️ <b>Custom City</b>\n\nA custom city is a city that is not in our database.\n\nYou can create your own city by specifying:\n• Name (must be unique)\n• Timezone (e.g., +07 or -11)\n\nTo create a custom city, use the button below:" :
