@@ -18,13 +18,6 @@ public class BotConfig {
     @Value("${telegram.bot.token}")
     private String botToken;
 
-    @Value("${proxy.host:}")
-    private String proxyHost;
-
-    @Value("${proxy.port:0}")
-    private int proxyPort;
-
-    // Статическая переменная для статического метода getBot()
     private static WorldAtlasBot botInstance;
 
     @Bean
@@ -36,16 +29,7 @@ public class BotConfig {
                                        ReminderService reminderService, SupportService supportService) {
         try {
             DefaultBotOptions options = new DefaultBotOptions();
-            
-            // Прокси опциональный — используется только если задан PROXY_HOST
-            if (proxyHost != null && !proxyHost.isEmpty() && proxyPort > 0) {
-                options.setProxyType(DefaultBotOptions.ProxyType.SOCKS5);
-                options.setProxyHost(proxyHost);
-                options.setProxyPort(proxyPort);
-                System.out.println("ℹ️ Используется SOCKS5 прокси: " + proxyHost + ":" + proxyPort);
-            } else {
-                System.out.println("ℹ️ Работаем без прокси (прямое подключение)");
-            }
+            System.out.println("ℹ️ Работаем без прокси (прямое подключение)");
 
             WorldAtlasBot bot = new WorldAtlasBot(options, userService, cityService, localization, timeService, customCityService, reminderService, supportService, botUsername, botToken);
             botInstance = bot;
@@ -61,7 +45,6 @@ public class BotConfig {
         return botInstance;
     }
 
-    // Статический метод для использования из ReminderScheduler
     public static WorldAtlasBot getBot() {
         return botInstance;
     }

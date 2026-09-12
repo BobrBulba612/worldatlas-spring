@@ -1,301 +1,1053 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>World Time Map</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;background:#1a1a2e;color:#fff;min-height:100vh}
-header{background:#16213e;padding:12px;position:sticky;top:0;z-index:10}
-h1{font-size:18px}
-.tabs{display:flex;gap:4px;padding:8px;background:#16213e;position:sticky;top:46px;z-index:10;overflow-x:auto}
-.tab{background:#0f3460;color:#e94560;padding:8px 14px;border:none;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap}
-.tab.active{background:#e94560;color:#fff}
-.page{display:none;padding:14px}
-.page.active{display:block}
-.card{background:#16213e;border-radius:12px;padding:14px;margin-bottom:10px}
-.card h3{font-size:16px;margin-bottom:6px;color:#e94560}
-.card .time{font-size:28px;font-weight:700;margin:4px 0}
-.card .date{font-size:12px;color:#aaa}
-input,select,textarea{width:100%;background:#0f3460;border:1px solid #0f3460;color:#fff;padding:10px;border-radius:8px;font-size:14px;margin-bottom:8px}
-button{background:#e94560;color:#fff;border:none;padding:10px;border-radius:8px;font-size:14px;cursor:pointer;width:100%}
-button:active{opacity:0.7}
-.msg{padding:10px;border-radius:8px;margin:8px 0;font-size:13px}
-.msg.ok{background:#2d5016}
-.msg.err{background:#5a1a1a}
-.msg.info{background:#0f3460}
-.list{margin:10px 0}
-.item{background:#16213e;padding:10px;border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
-.item .info{flex:1}
-.item .actions{display:flex;gap:6px}
-.btn-sm{padding:6px 10px;font-size:12px;width:auto}
-.empty{color:#888;text-align:center;padding:20px;font-size:13px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.debug{background:#0f3460;border-radius:8px;padding:10px;margin:10px 0;font-size:11px;font-family:monospace;max-height:150px;overflow-y:auto}
+:root {
+  --tg-theme-bg-color: #1a1a2e;
+  --tg-theme-text-color: #ffffff;
+  --tg-theme-hint-color: #8b8b9e;
+  --tg-theme-link-color: #8774e1;
+  --tg-theme-button-color: #8774e1;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #16213e;
+  --card-bg: #16213e;
+  --accent: #8774e1;
+  --success: #4ade80;
+  --error: #f87171;
+  --warning: #fbbf24;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--tg-theme-bg-color);
+  color: var(--tg-theme-text-color);
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* Header */
+header {
+  background: var(--tg-theme-secondary-bg-color);
+  padding: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Navigation */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px;
+  background: var(--tg-theme-secondary-bg-color);
+  position: sticky;
+  top: 60px;
+  z-index: 99;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  background: transparent;
+  color: var(--tg-theme-text-color);
+  border: 1px solid var(--tg-theme-hint-color);
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.tab.active {
+  background: var(--tg-theme-button-color);
+  color: var(--tg-theme-button-text-color);
+  border-color: var(--tg-theme-button-color);
+}
+
+.tab:active {
+  transform: scale(0.95);
+}
+
+/* Main content */
+main {
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page {
+  display: none;
+  animation: fadeIn 0.3s;
+}
+
+.page.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.card:active {
+  transform: scale(0.98);
+}
+
+.card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card .time {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 8px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.card .date {
+  font-size: 14px;
+  color: var(--tg-theme-hint-color);
+  margin-bottom: 8px;
+}
+
+.card .country {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color);
+}
+
+/* Forms */
+input, select, textarea {
+  width: 100%;
+  background: var(--tg-theme-bg-color);
+  border: 1px solid var(--tg-theme-hint-color);
+  color: var(--tg-theme-text-color);
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 15px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--tg-theme-button-color);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--tg-theme-hint-color);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+/* Buttons */
+button {
+  background: var(--tg-theme-button-color);
+  color: var(--tg-theme-button-text-color);
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+button:active {
+  transform: scale(0.98);
+  opacity: 0.8;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 8px 12px;
+  font-size: 13px;
+  width: auto;
+  margin: 0;
+}
+
+.btn-danger {
+  background: var(--error);
+}
+
+.btn-success {
+  background: var(--success);
+  color: #000;
+}
+
+/* Lists */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  background: var(--card-bg);
+  padding: 12px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.item .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.item .info h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item .info p {
+  font-size: 13px;
+  color: var(--tg-theme-hint-color);
+}
+
+.item .actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Messages */
+.msg {
+  padding: 12px;
+  border-radius: 12px;
+  margin: 12px 0;
+  font-size: 14px;
+  animation: slideIn 0.3s;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.msg.ok {
+  background: rgba(74, 222, 128, 0.2);
+  border: 1px solid var(--success);
+}
+
+.msg.err {
+  background: rgba(248, 113, 113, 0.2);
+  border: 1px solid var(--error);
+}
+
+.msg.info {
+  background: rgba(135, 116, 225, 0.2);
+  border: 1px solid var(--accent);
+}
+
+/* Search results */
+.search-results {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.search-item {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 4px;
+}
+
+.search-item:hover, .search-item:active {
+  background: var(--tg-theme-secondary-bg-color);
+}
+
+.search-item h4 {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.search-item p {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color);
+}
+
+/* Empty state */
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--tg-theme-hint-color);
+  font-size: 14px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+/* Grid layout for desktop */
+@media (min-width: 768px) {
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  
+  .card .time {
+    font-size: 42px;
+  }
+  
+  main {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  header h1 {
+    font-size: 24px;
+  }
+  
+  .tabs {
+    justify-content: center;
+  }
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--tg-theme-hint-color);
+}
+
+.spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--tg-theme-hint-color);
+  border-top-color: var(--tg-theme-button-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Settings */
+.settings-group {
+  margin-bottom: 20px;
+}
+
+.settings-group label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--tg-theme-bg-color);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-group label:active {
+  background: var(--tg-theme-secondary-bg-color);
+}
+
+.settings-group input[type="radio"],
+.settings-group input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+/* Support history */
+.support-item {
+  background: var(--card-bg);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.support-item .date {
+  font-size: 11px;
+  color: var(--tg-theme-hint-color);
+  margin-bottom: 6px;
+}
+
+.support-item .text {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.support-item .reply {
+  background: var(--tg-theme-secondary-bg-color);
+  padding: 10px;
+  border-radius: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.support-item .reply-label {
+  font-size: 11px;
+  color: var(--tg-theme-hint-color);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
 </style>
 </head>
 <body>
-<header><h1>🌍 World Time Map</h1></header>
+
+<header>
+  <h1>🌍 World Time Map</h1>
+</header>
+
 <nav class="tabs">
-<button class="tab active" onclick="showPage('clocks')">🕐 Часы</button>
-<button class="tab" onclick="showPage('convert')">🔁 Конвертер</button>
-<button class="tab" onclick="showPage('remind')">⏰ Напоминалки</button>
-<button class="tab" onclick="showPage('cities')">⭐ Города</button>
-<button class="tab" onclick="showPage('support')">💬 Поддержка</button>
+  <button class="tab active" onclick="showPage('clocks', this)">🕐 Часы</button>
+  <button class="tab" onclick="showPage('search', this)">🔍 Поиск</button>
+  <button class="tab" onclick="showPage('favorites', this)">⭐ Избранное</button>
+  <button class="tab" onclick="showPage('custom', this)">🏙️ Мои города</button>
+  <button class="tab" onclick="showPage('reminders', this)">⏰ Напоминания</button>
+  <button class="tab" onclick="showPage('convert', this)">🔄 Конвертер</button>
+  <button class="tab" onclick="showPage('support', this)">💬 Поддержка</button>
+  <button class="tab" onclick="showPage('settings', this)">⚙️ Настройки</button>
 </nav>
 
-<div id="debug" class="debug"></div>
-
 <main>
-<section id="page-clocks" class="page active">
-<h2>🕐 Мировые часы</h2>
-<div id="clocks"></div>
-<button onclick="addCity()">➕ Добавить город</button>
-</section>
+  <!-- ЧАСЫ -->
+  <section id="page-clocks" class="page active">
+    <div id="clocks-container">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка...</p>
+      </div>
+    </div>
+  </section>
 
-<section id="page-convert" class="page">
-<h2>🔁 Конвертер времени</h2>
-<div class="card">
-<label>Из города:</label>
-<select id="fromCity"></select>
-<label>В город:</label>
-<select id="toCity"></select>
-<label>Дата и время:</label>
-<input type="datetime-local" id="convTime">
-<button onclick="convert()">Конвертировать</button>
-<div id="convResult"></div>
-</div>
-</section>
+  <!-- ПОИСК -->
+  <section id="page-search" class="page">
+    <div class="card">
+      <h3>🔍 Поиск города</h3>
+      <input type="text" id="searchInput" placeholder="Введите название города..." oninput="debounceSearch()">
+      <div id="searchResults" class="search-results"></div>
+    </div>
+  </section>
 
-<section id="page-remind" class="page">
-<h2>⏰ Напоминалки</h2>
-<div id="remindList"></div>
-<div class="card">
-<h3>Создать напоминалку</h3>
-<label>Город:</label>
-<select id="remCity"></select>
-<label>Время:</label>
-<input type="time" id="remTime">
-<label>Текст:</label>
-<input type="text" id="remText" placeholder="Что напомнить?">
-<label>Дни:</label>
-<select id="remDays">
-<option value="all">Каждый день</option>
-<option value="weekdays">Будни</option>
-<option value="weekends">Выходные</option>
-</select>
-<button onclick="saveRemind()">Сохранить</button>
-</div>
-</section>
+  <!-- ИЗБРАННОЕ -->
+  <section id="page-favorites" class="page">
+    <div id="favorites-container">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка...</p>
+      </div>
+    </div>
+  </section>
 
-<section id="page-cities" class="page">
-<h2>⭐ Города</h2>
-<div class="card">
-<h3>Поиск города</h3>
-<input type="text" id="searchQ" placeholder="Москва, Лондон..." oninput="search()">
-<div id="searchRes"></div>
-</div>
-<div class="card">
-<h3>Избранные</h3>
-<div id="favList"></div>
-</div>
-<div class="card">
-<h3>Мои города</h3>
-<div id="customList"></div>
-<button onclick="addCustom()">➕ Создать свой город</button>
-</div>
-</section>
+  <!-- МОИ ГОРОДА -->
+  <section id="page-custom" class="page">
+    <div class="card">
+      <h3>➕ Создать свой город</h3>
+      <label>Название:</label>
+      <input type="text" id="customName" placeholder="Например: Моя деревня">
+      <label>Часовой пояс (UTC):</label>
+      <input type="text" id="customTimezone" placeholder="+03 или -05">
+      <button onclick="createCustomCity()">Создать</button>
+    </div>
+    <div id="custom-container">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка...</p>
+      </div>
+    </div>
+  </section>
 
-<section id="page-support" class="page">
-<h2>💬 Поддержка</h2>
-<div class="card">
-<h3>Написать в поддержку</h3>
-<textarea id="supText" rows="4" placeholder="Опишите проблему..."></textarea>
-<button onclick="sendSupport()">Отправить</button>
-<div id="supMsg"></div>
-</div>
-<div class="card">
-<h3>История обращений</h3>
-<div id="supHistory"></div>
-</div>
-</section>
+  <!-- НАПОМИНАНИЯ -->
+  <section id="page-reminders" class="page">
+    <div class="card">
+      <h3>⏰ Создать напоминание</h3>
+      <label>Город:</label>
+      <select id="reminderCity"></select>
+      <label>Время:</label>
+      <input type="time" id="reminderTime">
+      <label>Текст:</label>
+      <textarea id="reminderText" placeholder="Что напомнить?"></textarea>
+      <label>Дни:</label>
+      <select id="reminderDays">
+        <option value="all">Каждый день</option>
+        <option value="weekdays">Будни (Пн-Пт)</option>
+        <option value="weekends">Выходные (Сб-Вс)</option>
+      </select>
+      <button onclick="createReminder()">Сохранить</button>
+    </div>
+    <div id="reminders-container">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка...</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- КОНВЕРТЕР -->
+  <section id="page-convert" class="page">
+    <div class="card">
+      <h3>🔄 Конвертер времени</h3>
+      <label>Из города:</label>
+      <select id="convertFrom"></select>
+      <label>В город:</label>
+      <select id="convertTo"></select>
+      <label>Дата и время:</label>
+      <input type="datetime-local" id="convertTime">
+      <button onclick="convertTime()">Конвертировать</button>
+      <div id="convertResult"></div>
+    </div>
+  </section>
+
+  <!-- ПОД�</div>
+        <p>Загрузка...</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- НАСТРОЙКИ -->
+  <section id="page-settings" class="page">
+    <div class="card">
+      <h3>🌐 Язык</h3>
+      <div class="settings-group">
+        <label>
+          <input type="radio" name="lang" value="ru" onchange="setLanguage('ru')">
+          <span>🇷🇺 Русский</span>
+        </label>
+        <label>
+          <input type="radio" name="lang" value="en" onchange="setLanguage('en')">
+          <span>🇬🇧 English</span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h3>🕐 Формат времени</h3>
+      <div class="settings-group">
+        <label>
+          <input type="radio" name="format" value="24" onchange="setTimeFormat('24')">
+          <span>24-часовой (14:30)</span>
+        </label>
+        <label>
+          <input type="radio" name="format" value="12" onchange="setTimeFormat('12')">
+          <span>12-часовой (2:30 PM)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🏠 Домашний город</h3>
+      <input type="text" id="homeCityInput" placeholder="Введите название города">
+      <button onclick="setHomeCity()">Установить</button>
+    </div>
+  </section>
 </main>
 
 <script>
-const tg=window.Telegram?Telegram.WebApp:null;
-if(tg){tg.ready();tg.expand();}
-const INIT=tg?tg.initData:'';
-const DEV=new URLSearchParams(location.search).get('chatId')||'1319065617';
-let S={lang:'ru',homeCity:null,favorites:[],customCities:[],reminder:null};
-
-function log(m){const d=document.getElementById('debug');d.textContent+=new Date().toLocaleTimeString()+' '+m+'\\n';d.scrollTop=d.scrollHeight;}
-
-async function api(p,m,b){
-try{
-log('→ '+p);
-const o={method:m||'GET',headers:{'Content-Type':'application/json'}};
-const d=Object.assign({initData:INIT,devChatId:DEV},b||{});
-if(m&&m!=='GET')o.body=JSON.stringify(d);
-let u='/api'+p;
-if(!m||m==='GET'){const q=new URLSearchParams(d);u+='?'+q;}
-const r=await fetch(u,o);
-const j=await r.json();
-log('← '+JSON.stringify(j).substr(0,80));
-return j;
-}catch(e){log('❌ '+e.message);return null;}
+const tg = window.Telegram ? Telegram.WebApp : null;
+if (tg) {
+  tg.ready();
+  tg.expand();
 }
 
-function showPage(n){
-document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-document.getElementById('page-'+n).classList.add('active');
-event.target.classList.add('active');
-if(n==='support')loadSupport();
-if(n==='remind')loadRemind();
-if(n==='cities')loadCities();
-if(n==='convert')loadConvert();
+const initData = tg ? tg.initData : '';
+const devChatId = new URLSearchParams(location.search).get('chatId') || '1319065617';
+
+let state = {
+  lang: 'ru',
+  timeFormat: '24',
+  homeCity: null,
+  favorites: [],
+  customCities: [],
+  reminders: []
+};
+
+let searchTimeout = null;
+
+// API helper
+async function api(path, method = 'GET', body = null) {
+  try {
+    const options = {
+      method,
+      headers: { 'Content-Type': 'application/json' }
+    };
+    
+    let url = '/api' + path;
+    if (method === 'GET') {
+      const params = new URLSearchParams({ initData, devChatId });
+      url += '?' + params.toString();
+    } else {
+      options.body = JSON.stringify({ ...body, initData, devChatId });
+    }
+    
+    const response = await fetch(url, options);
+    return await response.json();
+  } catch (error) {
+    console.error('API error:', error);
+    return null;
+  }
 }
 
-function fmtTime(tz){
-const now=new Date();
-return new Intl.DateTimeFormat('ru-RU',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).format(now);
-}
-function fmtDate(tz){
-const now=new Date();
-return new Intl.DateTimeFormat('ru-RU',{timeZone:tz,weekday:'short',day:'numeric',month:'long'}).format(now);
-}
-
-async function loadClocks(){
-log('Загрузка часов...');
-const r=await api('/state');
-if(!r||r.error){log('❌ Ошибка: '+(r?r.error:'нет ответа'));return;}
-S=r;
-log('✅ Загружено: '+S.favorites.length+' избранных, '+S.customCities.length+' своих');
-let h='';
-if(S.homeCity)h+='<div class="card"><h3>'+S.homeCity.name+' 🏠</h3><div class="time" data-tz="'+S.homeCity.timezone+'">'+fmtTime(S.homeCity.timezone)+'</div><div class="date" data-tzd="'+S.homeCity.timezone+'">'+fmtDate(S.homeCity.timezone)+'</div></div>';
-S.favorites.forEach(c=>{if(!S.homeCity||c.key!==S.homeCity.key)h+='<div class="card"><h3>'+c.name+'</h3><div class="time" data-tz="'+c.timezone+'">'+fmtTime(c.timezone)+'</div><div class="date" data-tzd="'+c.timezone+'">'+fmtDate(c.timezone)+'</div></div>';});
-S.customCities.forEach(c=>{h+='<div class="card"><h3>'+c.name+' 🛠️</h3><div class="time" data-tz="'+c.timezone+'">'+fmtTime(c.timezone)+'</div><div class="date" data-tzd="'+c.timezone+'">'+fmtDate(c.timezone)+'</div></div>';});
-document.getElementById('clocks').innerHTML=h||'<div class="empty">Нет городов. Добавьте через кнопку ниже.</div>';
-setInterval(()=>{document.querySelectorAll('[data-tz]').forEach(e=>e.textContent=fmtTime(e.dataset.tz));document.querySelectorAll('[data-tzd]').forEach(e=>e.textContent=fmtDate(e.dataset.tzd));},1000);
+// Navigation
+function showPage(pageId, tabElement) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  
+  document.getElementById('page-' + pageId).classList.add('active');
+  tabElement.classList.add('active');
+  
+  if (tg && tg.HapticFeedback) {
+    tg.HapticFeedback.selectionChanged();
+  }
+  
+  // Load data for specific pages
+  if (pageId === 'clocks') loadClocks();
+  if (pageId === 'favorites') loadFavorites();
+  if (pageId === 'custom') loadCustomCities();
+  if (pageId === 'reminders') loadReminders();
+  if (pageId === 'support') loadSupport();
+  if (pageId === 'settings') loadSettings();
 }
 
-function addCity(){
-const n=prompt('Введите название города для поиска:');
-if(!n)return;
-api('/cities/search?q='+encodeURIComponent(n)).then(r=>{
-if(!r||!r.length){alert('Город не найден');return;}
-const c=r[0];
-if(confirm('Добавить '+c.name+' в избранное?')){
-api('/favorites/toggle','POST',{key:c.key,add:true}).then(()=>{loadClocks();alert('Добавлено!');});
-}
-});
+// Format time
+function formatTime(timezone) {
+  const now = new Date();
+  const format = state.timeFormat === '12' ? 
+    { hour: 'numeric', minute: '2-digit', hour12: true } :
+    { hour: '2-digit', minute: '2-digit', hour12: false };
+  
+  return new Intl.DateTimeFormat(state.lang, { ...format, timeZone: timezone }).format(now);
 }
 
-async function loadConvert(){
-const sel1=document.getElementById('fromCity');
-const sel2=document.getElementById('toCity');
-let opts='<option value="">-- Выберите --</option>';
-const all=[...(S.homeCity?[S.homeCity]:[]),...S.favorites,...S.customCities];
-all.forEach(c=>{opts+='<option value="'+c.timezone+'">'+c.name+'</option>';});
-sel1.innerHTML=sel2.innerHTML=opts;
+function formatDate(timezone) {
+  const now = new Date();
+  return new Intl.DateTimeFormat(state.lang, {
+    timeZone: timezone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long'
+  }).format(now);
 }
 
-function convert(){
-const tz1=document.getElementById('fromCity').value;
-const tz2=document.getElementById('toCity').value;
-const t=document.getElementById('convTime').value;
-if(!tz1||!tz2||!t){alert('Заполните все поля');return;}
-const [d,tm]=t.split('T');
-const [y,mo,da]=d.split('-').map(Number);
-const [h,mi]=tm.split(':').map(Number);
-const utc=Date.UTC(y,mo-1,da,h,mi);
-const off1=new Date(utc).toLocaleString('en-US',{timeZone:tz1}).split(', ')[1];
-const off2=new Date(utc).toLocaleString('en-US',{timeZone:tz2}).split(', ')[1];
-document.getElementById('convResult').innerHTML='<div class="msg info">Время в целевом городе: <b>'+new Date(utc).toLocaleString('ru-RU',{timeZone:tz2})+'</b></div>';
+// Load clocks
+async function loadClocks() {
+  const result = await api('/state');
+  if (!result || result.error) return;
+  
+  state = result;
+  
+  const container = document.getElementById('clocks-container');
+  let html = '';
+  
+  if (state.homeCity) {
+    html += createCityCard(state.homeCity, '🏠');
+  }
+  
+  state.favorites.forEach(city => {
+    if (!state.homeCity || city.key !== state.homeCity.key) {
+      html += createCityCard(city, '⭐');
+    }
+  });
+  
+  state.customCities.forEach(city => {
+    html += createCustomCityCard(city);
+  });
+  
+  if (!html) {
+    html = '<div class="empty"><div class="empty-icon">🌍</div><p>Добавьте города через поиск или создайте свои</p></div>';
+  }
+  
+  container.innerHTML = html;
+  
+  // Update time every second
+  setInterval(() => {
+    document.querySelectorAll('[data-tz]').forEach(el => {
+      el.textContent = formatTime(el.dataset.tz);
+    });
+    document.querySelectorAll('[data-tzd]').forEach(el => {
+      el.textContent = formatDate(el.dataset.tzd);
+    });
+  }, 1000);
 }
 
-async function loadRemind(){
-const r=await api('/state');
-if(!r)return;
-S=r;
-const box=document.getElementById('remindList');
-if(S.reminder){
-box.innerHTML='<div class="card"><h3>Активная напоминалка</h3><p>🕐 '+S.reminder.time+' · '+S.reminder.city+'</p><p>📝 '+S.reminder.text+'</p><p>📅 '+S.reminder.days+'</p><button class="btn-sm" onclick="delRemind()">Удалить</button></div>';
-}else box.innerHTML='<div class="empty">Нет активных напоминалок</div>';
-const sel=document.getElementById('remCity');
-let opts='';
-[...(S.homeCity?[S.homeCity]:[]),...S.favorites,...S.customCities].forEach(c=>{opts+='<option value="'+c.key+'">'+c.name+'</option>';});
-sel.innerHTML=opts;
+function createCityCard(city, icon = '') {
+  return `
+    <div class="card">
+      <h3>${icon} ${city.name}</h3>
+      <div class="time" data-tz="${city.timezone}">${formatTime(city.timezone)}</div>
+      <div class="date" data-tzd="${city.timezone}">${formatDate(city.timezone)}</div>
+      <div class="country">${city.country || ''}</div>
+    </div>
+  `;
 }
 
-function saveRemind(){
-const city=document.getElementById('remCity').value;
-const time=document.getElementById('remTime').value;
-const text=document.getElementById('remText').value;
-const days=document.getElementById('remDays').value;
-if(!city||!time){alert('Заполните город и время');return;}
-api('/reminders','POST',{key:city,time:time,text:text,days:days}).then(r=>{
-if(r&&r.ok){alert('Сохранено!');loadRemind();}
-else alert('Ошибка');
-});
+function createCustomCityCard(city) {
+  return `
+    <div class="card">
+      <h3>🏙️ ${city.name}</h3>
+      <div class="time" data-tz="${city.timezone}">${formatTime(city.timezone)}</div>
+      <div class="date" data-tzd="${city.timezone}">${formatDate(city.timezone)}</div>
+      <div class="country">UTC${city.timezone}</div>
+    </div>
+  `;
 }
 
-function delRemind(){
-if(!confirm('Удалить напоминалку?'))return;
-api('/reminders/delete','POST',{}).then(()=>{loadRemind();alert('Удалено');});
+// Search
+function debounceSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(searchCities, 300);
 }
 
-async function loadCities(){
-const r=await api('/state');
-if(!r)return;
-S=r;
-const fav=document.getElementById('favList');
-fav.innerHTML=S.favorites.map(c=>'<div class="item"><div class="info">'+c.name+'</div><div class="actions"><button class="btn-sm" onclick="delFav(\\''+c.key+'\\')">❌</button></div></div>').join('')||'<div class="empty">Нет избранных</div>';
-const cust=document.getElementById('customList');
-cust.innerHTML=S.customCities.map(c=>'<div class="item"><div class="info">'+c.name+'<br><small style="color:#888">'+c.timezone+'</small></div><div class="actions"><button class="btn-sm" onclick="delCustom('+c.id+')">🗑️</button></div></div>').join('')||'<div class="empty">Нет своих городов</div>';
+async function searchCities() {
+  const query = document.getElementById('searchInput').value.trim();
+  const resultsDiv = document.geteURIComponent(query)}`);
+  
+  if (!results || !results.length) {
+    resultsDiv.innerHTML = '<div class="empty">Ничего не найдено</div>';
+    return;
+  }
+  
+  resultsDiv.innerHTML = results.map(city => `
+    <div class="search-item" onclick="addToFavorites('${city.key}', '${city.name.replace(/'/g, "\\'")}')">
+      <h4>${city.name}</h4>
+      <p>${city.country || ''}</p>
+    </div>
+  `).join('');
 }
 
-function search(){
-const q=document.getElementById('searchQ').value;
-if(q.length<2){document.getElementById('searchRes').innerHTML='';return;}
-api('/cities/search?q='+encodeURIComponent(q)).then(r=>{
-if(!r||!rЧасовой пояс (например Europe/Moscow):');
-if(!tz)return;
-api('/custom','POST',{name:name,timezone:tz}).then(r=>{
-if(r&&r.ok){loadCities();alert('Создано!');}
-else alert('Ошибка');
-});
+async function addToFavorites(key, name) {
+  const result = await api('/favorites/toggle', 'POST', { key, add: true });
+  if (result && result.ok) {
+    alert(`✅ ${name} добавлен в избранное!`);
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+    loadClocks();
+  }
 }
 
-function delCustom(id){
-if(!confirm('Удалить?'))return;
-api('/custom/delete','POST',{id:id}).then(()=>{loadCities();alert('Удалено');});
+// Favorites
+async function loadFavorites() {
+  const result = await api('/state');
+  if (!result) return;
+  
+  state = result;
+  const container = document.getElementById('favorites-container');
+  
+  if (!state.favorites.length) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">⭐</div><p>Нет избранных городов</p></div>';
+    return;
+  }
+  
+  container.innerHTML = '<div class="list">' + state.favorites.map(city => `
+    <div class="item">
+      <div class="info">
+        <h4>${city.name}</h4>
+        <p>${city.country || ''}</p>
+      </div>
+      <div class="actions">
+        <button class="btn-sm btn-danger" onclick="removeFavorite('${city.key}')">❌</button>
+      </div>
+    </div>
+  `).join('') + '</div>';
 }
 
-async function loadSupport(){
-const r=await api('/support');
-if(!r)return;
-const box=document.getElementById('supHistory');
-if(!r.length){box.innerHTML='<div class="empty">Нет обращений</div>';return;}
-box.innerHTML=r.map(m=>'<div class="item"><div class="info"><div style="font-size:11px;color:#888">'+new Date(m.date).toLocaleString()+'</div>'+m.text+(m.answered?'<div style="margin-top:6px;padding:6px;background:#0f3460;border-radius:6px"><b>Ответ:</b> '+m.reply+'</div>':'')+'</div></div>').join('');
+async function removeFavorite(key) {
+  if (!confirm('Удалить из избранного?')) return;
+  const result = await api('/favorites/toggle', 'POST', { key, add: false });
+  if (result && result.ok) {
+    loadFavorites();
+    loadClocks();
+  }
 }
 
-function sendSupport(){
-const t=document.getElementById('supText').value.trim();
-if(!t){alert('Введите текст');return;}
-api('/support','POST',{text:t}).then(r=>{
-const box=document.getElementById('supMsg');
-if(r&&r.ok){box.innerHTML='<div class="msg ok">✅ Сообщение отправлено!</div>';document.getElementById('supText').value='';loadSupport();}
-else if(r&&r.error==='rate_limit')box.innerHTML='<div class="msg err">Не чаще 1 раза в минуту</div>';
-else box.innerHTML='<div class="msg err">Ошибка отправки</div>';
-});
+// Custom cities
+async function loadCustomCities() {
+  const result = await api('/state');
+  if (!result) return;
+  
+  state = result;
+  const container = document.getElementById('custom-container');
+  
+  if (!state.customCities.length) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">🏙️</div><p>Нет своих городов</p></div>';
+    return;
+  }
+  
+  container.innerHTML = '<div class="list" style="margin-top: 16px;">' + state.customCities.map(city => `
+    <div class="item">
+      <div class="info">
+        <h4>${city.name}</h4>
+        <p>UTC${city.timezone}</p>
+      </div>
+      <div class="actions">
+        <button class="btn-sm btn-danger" onclick="deleteCustomCity(${city.id})">🗑️</button>
+      </div>
+    </div>
+  `).join('') + '</div>';
 }
 
-log('Инициализация...');
-log('initData: '+(INIT?'есть':'пусто'));
-log('chatId: '+DEV);
+async function createCustomCity() {
+  const name = document.getElementById('customName').value.trim();
+  const timezone = document.getElementById('customTimezone').value.trim();
+  
+  if (!name || !timezone) {
+    alert('Заполните все поля');
+    return;
+  }
+  
+  if (!/^[+-]\d{1,2}$/.test(timezone)) {
+    alert('Неверный формат часового пояса. Используйте +03 или -05');
+    return;
+  }
+  
+  const result = await api('/custom', 'POST', { name, timezone });
+  
+  if (result && result.ok) {
+    alert('✅ Город создан!');
+    document.getElementById('customName').value = '';
+    document.getElementById('customTimezone').value = '';
+    loadCustomCities();
+    loadClocks();
+  } else {
+    alert('❌ Ошибка создания');
+  }
+}
+
+async function deleteCustomCity(id) {
+  if (!confirm('Удалить город?')) return;
+  const result = await api('/custom/delete', 'POST', { id });
+  if (result && resulate city selector
+  const allCities = [...(state.homeCity ? [state.homeCity] : []), ...state.favorites, ...state.customCities];
+  const selector = document.getElementById('reminderCity');
+  selector.innerHTML = allCities.map(c => `<option value="${c.key || c.name}">${c.name}</option>`).join('');
+  
+  const container = document.getElementById('reminders-container');
+  
+  if (!state.reminder) {
+    container.innerHTML = '<div class="empty" style="margin-top: 16px;"><div class="empty-icon">⏰</div><p>Нет активных напоминаний</p></div>';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="card" style="margin-top: 16px;">
+      <h3>Активное напоминание</h3>
+      <p><strong>🕐 Время:</strong> ${state.reminder.time}</p>
+      <p><strong>🏙️ Город:</strong> ${state.reminder.city}</p>
+      <p><strong>📝 Текст:</strong> ${state.reminder.text}</p>
+      <p><strong>📅 Дни:</strong> ${state.reminder.days}</p>
+      <button class="btn-danger" onclick="deleteReminder()">Удалить</button>
+    </div>
+  `;
+}
+
+async function createReminder() {
+  const city = document.getElementById('reminderCity').value;
+  const time = document.getElementById('reminderTime').value;
+  const text = document.getElementById('reminderText').value.trim();
+  const days = document.getElementById('reminderDays').value;
+  
+  if (!city || !time) {
+    alert('Заполните город и время');
+    return;
+  }
+  
+  const result = await api('/reminders', 'POST', { key: city, time, text, days });
+  
+  if (result && result.ok) {
+    alert('✅ Напоминание создано!');
+    document.getElementById('reminderTime').value = '';
+    document.getElementById('reminderText').value = '';
+    loadReminders();
+  }
+}
+
+async function deleteReminder() {
+  if (!confirm('Удалить напоминание?')) return;
+  const result = await api('/reminders/delete', 'POST', {});
+  if (result && result.ok) {
+    loadReminders();
+  }
+}
+
+// Convert time
+async function convertTime() {
+  const from = document.getElementById('convertFrom').value;
+  const to = document.getElementById('convertTo').value;
+  const time = document.getElementById('convertTime').value;
+  
+  if (!from || !to || !time) {
+    alert('Заполните все поля');
+    return;
+  }
+  
+  const result = await api(`/diff?city1=${encodeURIComponent(from)}&city2=${encodeURIComponent(to)}`);
+  
+  if (result && result.ok) {
+    document.getElementById('convertResult').innerHTML = `
+      <div class="msg info">
+        <p><strong>${result.city1.name}:</strong> ${result.time1}</p>
+        <p><strong>${result.city2.name}:</strong> ${result.time2}</p>
+        <p><strong>Разница:</strong> ${result.diff}</p>
+      </div>
+    `;
+  }
+}
+
+// Support
+async function loadSupport() {
+  const result = await api('/support');
+  if (!result) return;
+  
+  const container = document.getElementById('support-container');
+  
+  if (!result.length) {
+    container.innerHTML = '<div class="empty" style="margin-top: 16px;"><div class="empty-icon">💬</div><p>Нет обращений</p></div>';
+    return;
+  }
+  
+  container.innerHTML = '<div style="margin-top: 16px;">' + result.map(msg => `
+    <div class="support-item">
+      <div class="date">${new Date(msg.date).toLocaleString(state.lang)}</div>
+      <div class="text">${msg.text}</div>
+      ${msg.answered ? `
+        <div class="reply">
+          <div class="reply-label">Ответ поддержки:</div>
+          ${msg.reply}
+        </div>
+      ` : ''}
+    </div
+  }
+  
+  const result = await api('/support', 'POST', { text });
+  const msgDiv = document.getElementById('supportMessage');
+  
+  if (result && result.ok) {
+    msgDiv.innerHTML = '<div class="msg ok">✅ Сообщение отправлено!</div>';
+    document.getElementById('supportText').value = '';
+    setTimeout(() => { msgDiv.innerHTML = ''; }, 3000);
+    loadSupport();
+  } else if (result && result.error === 'rate_limit') {
+    msgDiv.innerHTML = '<div class="msg err">Не чаще 1 раза в минуту</div>';
+  } else {
+    msgDiv.innerHTML = '<div class="msg err">Ошибка отправки</div>';
+  }
+}
+
+// Settings
+async function loadSettings() {
+  const result = await api('/state');
+  if (!result) return;
+  
+  state = result;
+  
+  document.querySelector(`input[name="lang"][value="${state.lang}"]`).checked = true;
+  document.querySelector(`input[name="format"][value="${state.timeFormat}"]`).checked = true;
+  
+  if (state.homeCity) {
+    document.getElementById('homeCityInput').value = state.homeCity.name;
+  }
+}
+
+async function setLanguage(lang) {
+  const result = await api('/settings', 'POST', { lang });
+  if (result && result.ok) {
+    state.lang = lang;
+    alert('✅ Язык изменён');
+  }
+}
+
+async function setTimeFormat(format) {
+  const result = await api('/settings', 'POST', { format });
+  if (result && result.ok) {
+    state.timeFormat = format;
+    alert('✅ Формат времени изменён');
+    loadClocks();
+  }
+}
+
+async function setHomeCity() {
+  const city = document.getElementById('homeCityInput').value.trim();
+  if (!city) {
+    alert('Введите название города');
+    return;
+  }
+  
+  const result = await api('/home', 'POST', { key: city });
+  if (result && result.ok) {
+    alert('✅ Домашний город установлен');
+    loadClocks();
+  }
+}
+
+// Initialize
 loadClocks();
 </script>
+
 </body>
 </html>
