@@ -2329,4 +2329,52 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             execute(answer);
         } catch (TelegramApiException e) { log.error("Inline error: {}", e.getMessage()); }
     }
+
+    public void onCallbackQueryReceived(org.telegram.telegrambots.meta.api.objects.CallbackQuery callbackQuery) {
+        String data = callbackQuery.getData();
+        Long chatId = callbackQuery.getMessage().getChatId();
+        Integer messageId = callbackQuery.getMessage().getMessageId();
+        String callbackId = callbackQuery.getId();
+        
+        try {
+            if (data.equals("admin_stats")) {
+                answerCallback(callbackId);
+                long totalUsers = userService.getAllUsers().size();
+                long totalTickets = supportService.getAllTickets().size();
+                long newTickets = supportService.getUnanswered().size();
+                
+                String body = "📊 <b>STATS</b>\n\n👥 Users: " + totalUsers + "\n📨 Tickets: " + totalTickets + "\n🆕 New: " + newTickets;
+                editMessageText(chatId, messageId, body);
+            }
+            else if (data.equals("admin_close")) {
+                answerCallback(callbackId);
+                try {
+                    org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage del = 
+                        new org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage();
+                    del.setChatId(chatId);
+                    del.setMessageId(messageId);
+                    execute(del);
+                } catch (Exception ignored) {}
+            }
+            else if (data.startsWith("ticket_status_")) {
+                answerCallback(callbackId);
+                String[] parts = data.split("_");
+                if (parts.length >= 4) {
+                    Long ticketId = Long.parseLong(parts[2]);
+                    SupportMessage.TicketStatus status = SupportMessage.TicketStatus.valueOf(parts[3]);
+                    supportService.updateStatus(ticketId, status);
+                    editMessageText(chatId, messageId, "✅ Status updated to " + parts[3]);
+                }
+            }
+            else if (data.startsWith("ticket_delete_")) {
+                answerCallback(callbackId);
+                Long ticketId = Long.parseLong(data.replace("ticket_delete_", ""));
+                supportService.deleteById(ticketId);
+                editMessageText(chatId, messageId, "✅ Deleted");
+            }
+        } catch (Exception e) {
+            answerCallback(callbackId);
+        }
+    }
+
 }
