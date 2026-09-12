@@ -12,4 +12,5 @@ public interface SupportMessageRepository extends JpaRepository<SupportMessage, 
     List<SupportMessage> findByChatIdOrderByCreatedAtDesc(Long chatId);
     int countByChatIdAndCreatedAtAfter(Long chatId, LocalDateTime after);
     List<SupportMessage> findByAnsweredFalseOrderByCreatedAtAsc();
+    List<SupportMessage> findAllByOrderByCreatedAtDesc();
 }

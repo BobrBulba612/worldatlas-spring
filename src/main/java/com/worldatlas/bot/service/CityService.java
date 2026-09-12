@@ -915,4 +915,7 @@ public class CityService {
         if (s == null || s.isEmpty()) return s;
         return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
+    public long count() {
+        return cityRepository.count();
+    }
 }

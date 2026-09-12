@@ -23,7 +23,16 @@ public class SupportMessage {
     @Column(length = 2000)
     private String adminReply;
     
+    @Enumerated(EnumType.STRING)
+    private TicketStatus status = TicketStatus.NEW;
+    
     private boolean answered = false;
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime answeredAt;
+    
+    public enum TicketStatus {
+        NEW,           // 🆕 Новое
+        IN_PROGRESS,   // ⏳ В процессе
+        RESOLVED       // ✅ Решено
+    }
 }
