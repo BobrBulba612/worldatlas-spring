@@ -1215,7 +1215,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     "• /stats - Detailed statistics\n" +
                     "• /tickets - All support tickets with buttons\n" +
                     "• /users - List of users\n" +
-                    "• /reply <ID> <text> - Reply to ticket or user\n\n" +
+                    "• /reply ID text - Reply to ticket or user\n\n" +
                     "💡 Click buttons below for quick actions:" :
                     "🛡️ <b>ПАНЕЛЬ УПРАВЛЕНИЯ</b>\n\n" +
                     "📊 <b>Быстрая статистика:</b>\n" +
@@ -1226,7 +1226,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     "• /stats - Подробная статистика\n" +
                     "• /tickets - Все обращения с кнопками\n" +
                     "• /users - Список пользователей\n" +
-                    "• /reply <ID> <текст> - Ответить на обращение\n\n" +
+                    "• /reply ID текст - Ответить на обращение\n\n" +
                     "💡 Нажмите кнопки ниже для быстрых действий:";
                 
                 SendMessage msg = new SendMessage();
@@ -1307,13 +1307,15 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 for (int i = tickets.size() - 1; i >= 0 && count < 10; i--, count++) {
                     SupportMessage t = tickets.get(i);
                     
-                    String statusEmoji = switch (t.getStatus()) {
+                    SupportMessage.TicketStatus status = t.getStatus() != null ? t.getStatus() : SupportMessage.TicketStatus.NEW;
+                    
+                    String statusEmoji = switch (status) {
                         case NEW -> "🆕";
                         case IN_PROGRESS -> "⏳";
                         case RESOLVED -> "✅";
                     };
                     
-                    String statusText = switch (t.getStatus()) {
+                    String statusText = switch (status) {
                         case NEW -> "en".equals(lang) ? "New" : "Новое";
                         case IN_PROGRESS -> "en".equals(lang) ? "In Progress" : "В процессе";
                         case RESOLVED -> "en".equals(lang) ? "Resolved" : "Решено";
