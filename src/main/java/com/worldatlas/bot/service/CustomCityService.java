@@ -45,9 +45,10 @@ public class CustomCityService {
         }
     }
 
-    public String getCustomCityInfo(CustomCity city, String lang) {
+    public String getCustomCityInfo(CustomCity city, String lang, String timeFormat) {
         ZonedDateTime now = getTimeForCustomCity(city);
-        String timeStr = now.format(DateTimeFormatter.ofPattern("HH:mm"));
+        String pattern = "12".equals(timeFormat) ? "hh:mm a" : "HH:mm";
+        String timeStr = now.format(DateTimeFormatter.ofPattern(pattern));
         String dateStr = now.format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
         String name = city.getName().substring(0, 1).toUpperCase() + city.getName().substring(1);
         
@@ -89,4 +90,10 @@ public class CustomCityService {
         }
         return false;
     }
+
+    public boolean canCreateMoreCities(Long userId) {
+        List<CustomCity> cities = customCityRepository.findByUserId(userId);
+        return cities.size() < 3;
+    }
+
 }

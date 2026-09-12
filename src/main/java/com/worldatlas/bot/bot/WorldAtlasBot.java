@@ -88,21 +88,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         this.botUsername = botUsername;
         this.botToken = botToken;
     
-        // Отложенная установка команд в отдельном потоке
-        new Thread(() -> {
-            int attempts = 5;
-            while (attempts > 0) {
-                try {
-                    Thread.sleep(10000);
-                    setCommands();
-                    System.out.println("✅ Команды успешно установлены");
-                    break;
-                } catch (Exception e) {
-                    attempts--;
-                    System.out.println("⚠️ Установка команд (попыток осталось: " + attempts + "): " + e.getMessage());
-                }
-            }
-        }).start();
+        
     }
 
 
@@ -1033,7 +1019,10 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                                 String displayName = cityService.getCityNameLocalized(city, lang);
                                 String countryName = cityService.getCountryLocalized(city, lang);
                                 java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
-                                String timeStr = cityTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                                String timeFormat = user.getTimeFormat();
+                                String timeStr = "12".equals(timeFormat) ? 
+                                    cityTime.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a")) :
+                                    cityTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
                                 int offsetSeconds = cityTime.getOffset().getTotalSeconds();
                                 int offsetHours = offsetSeconds / 3600;
                                 String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
@@ -1048,7 +1037,10 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         sb.append("🏙️ <b>").append("en".equals(lang) ? "Custom Cities:" : "Пользовательские города:").append("</b>\n\n");
                         for (CustomCity cc : customCities) {
                             ZonedDateTime now = customCityService.getTimeForCustomCity(cc);
-                            String timeStr = now.format(DateTimeFormatter.ofPattern("HH:mm"));
+                            String timeFormat = user.getTimeFormat();
+                            String timeStr = "12".equals(timeFormat) ? 
+                                now.format(DateTimeFormatter.ofPattern("hh:mm a")) :
+                                now.format(DateTimeFormatter.ofPattern("HH:mm"));
                             String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
                             sb.append("🏙️ <b>").append(displayName).append("</b>\n")
                               .append("   🌐 UTC").append(cc.getTimezone()).append("\n")
@@ -1435,6 +1427,14 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     return;
                 }
                 
+                // Проверяем лимит 3 города
+                if (!customCityService.canCreateMoreCities(chatId)) {
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ You can only create up to 3 custom cities." :
+                        "❌ Вы можете создать максимум 3 пользовательских города.");
+                    return;
+                }
+                
                 // Проверяем пользовательские города ЭТОГО пользователя
                 if (customCityService.isNameTakenByUser(chatId, cityName)) {
                     sendMsg(chatId, "en".equals(lang) ?
@@ -1477,7 +1477,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     "✅ Custom city <b>" + cityName + "</b> created successfully!\n\n🌐 Timezone: UTC" + timezone :
                     "✅ Пользовательский город <b>" + cityName + "</b> успешно создан!\n\n🌐 Часовой пояс: UTC" + timezone;
                 sendMsg(chatId, msg);
-                sendMsg(chatId, customCityService.getCustomCityInfo(customCity, lang));
+                sendMsg(chatId, customCityService.getCustomCityInfo(customCity, lang, user.getTimeFormat()));
                 return;
             }
                         if (state.equals(STATE_WAITING_DELETE_CUSTOM_CITY)) {
@@ -1945,16 +1945,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             User updatedUser = userService.getUser(chatId);
             showSettings(chatId, updatedUser.getLanguage(), updatedUser);
         } else if (data.equals("settings_back")) {
-            editMessageText(chatId, messageId, "en".equals(lang) ? "🏠 Main menu:" : "🏠 Главное меню:");
-            SendMessage msg = new SendMessage();
-            msg.setChatId(String.valueOf(chatId));
-            msg.setText("en".equals(lang) ? "🏠 Main menu:" : "🏠 Главное меню:");
-            msg.setReplyMarkup(getMainMenuKeyboard(lang));
-            try {
-                execute(msg);
-            } catch (TelegramApiException e) {
-                log.error("Send error: " + e.getMessage());
-            }
+            User updatedUser = userService.getUser(chatId);
+            showSettings(chatId, updatedUser.getLanguage(), updatedUser);
         } else if (data.equals("show_download")) {
             showDownloadMenu(chatId, lang);
         } else if (data.equals("download_windows")) {
@@ -2071,13 +2063,16 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             ("en".equals(lang) ? "24 hours" : "24 часа") :
             ("en".equals(lang) ? "12 hours (AM/PM)" : "12 часов (AM/PM)");
         
+        String homeCity = user.getHomeCity() != null ? user.getHomeCity() : ("en".equals(lang) ? "Not set" : "Не установлен");
         String text = "en".equals(lang) ?
             "⚙️ <b>Settings</b>\n\n" +
             "🌐 Language: " + currentLang + "\n" +
-            "🕐 Time format: " + currentTimeFormat :
+            "🕐 Time format: " + currentTimeFormat + "\n" +
+            "🏠 Home city: " + homeCity :
             "⚙️ <b>Настройки</b>\n\n" +
             "🌐 Язык: " + currentLang + "\n" +
-            "🕐 Формат времени: " + currentTimeFormat;
+            "🕐 Формат времени: " + currentTimeFormat + "\n" +
+            "🏠 Домашний город: " + homeCity;
         
         InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
