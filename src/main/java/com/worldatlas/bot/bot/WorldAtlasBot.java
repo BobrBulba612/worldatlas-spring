@@ -48,6 +48,7 @@ import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeAllPrivateChats;
 import com.worldatlas.bot.service.TelegramRetryService;
+import com.worldatlas.bot.service.RateLimitService;
 
 @Slf4j
 public class WorldAtlasBot extends TelegramLongPollingBot {
@@ -57,6 +58,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private final ReminderService reminderService;
     private final SupportService supportService;
     private final TelegramRetryService retryService;
+    private final RateLimitService rateLimitService;
     private final LocalizationService localization;
     private final TimeService timeService;
     private final CustomCityService customCityService;
@@ -82,7 +84,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private static final String STATE_WAITING_DELETE_CUSTOM_CITY = "WAITING_DELETE_CUSTOM_CITY";
     private static final String OWNER_SECRET_KEY = "DenisWorldAtlasSupreme2026!@#Owner";
 
-    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, TelegramRetryService retryService, String botUsername, String botToken) {
+    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, TelegramRetryService retryService, RateLimitService rateLimitService, String botUsername, String botToken) {
         super(options, botToken);
         this.userService = userService;
         this.cityService = cityService;
@@ -92,6 +94,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         this.reminderService = reminderService;
         this.supportService = supportService;
         this.retryService = retryService;
+        this.rateLimitService = rateLimitService;
         this.botUsername = botUsername;
         this.botToken = botToken;
     
@@ -1430,15 +1433,22 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
         
-        // ========== КОМАНДА /users ==========
+        // ========== КОМАНДА /users (с пагинацией) ==========
         if (text.equals("/users") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
             try {
                 List<User> users = userService.getAllUsers();
+                int pageSize = 10;
+                int totalPages = (users.size() + pageSize - 1) / pageSize;
+                int currentPage = 1;
+                
+                int start = (currentPage - 1) * pageSize;
+                int end = Math.min(start + pageSize, users.size());
+                List<User> pageUsers = users.subList(start, end);
                 StringBuilder body = new StringBuilder();
-                body.append("en".equals(lang) ? "👥 <b>LAST 20 USERS</b>\n\n" : "👥 <b>ПОСЛЕДНИЕ 20 ПОЛЬЗОВАТЕЛЕЙ</b>\n\n");
+                body.append("en".equals(lang) ? "👥 <b>USERS (Page " + currentPage + "/" + totalPages + ")</b>\n\n" : "👥 <b>ПОЛЬЗОВАТЕЛИ (Страница " + currentPage + "/" + totalPages + ")</b>\n\n");
                 
                 int count = 0;
-                for (int i = users.size() - 1; i >= 0 && count < 20; i--, count++) {
+                for (int i = end - 1; i >= start; i--, count++) {
                     User u = users.get(i);
                     String name = u.getFirstName() != null ? u.getFirstName() : (u.getUsername() != null ? "@" + u.getUsername() : "ID:" + u.getChatId());
                     String roleEmoji = switch (u.getRole()) {
@@ -1454,7 +1464,22 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     body.append("en".equals(lang) ? "No users yet." : "Пока нет пользователей.");
                 }
                 
-                sendMsg(chatId, body.toString());
+                // Кнопки навигации
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                
+                List<InlineKeyboardButton> navRow = new ArrayList<>();
+                if (currentPage > 1) {
+                    navRow.add(createInlineButton("⬅️ Prev", "users_page_" + (currentPage - 1)));
+                }
+                navRow.add(createInlineButton("📊 " + currentPage + "/" + totalPages, "users_page_" + currentPage));
+                if (currentPage < totalPages) {
+                    navRow.add(createInlineButton("Next ➡️", "users_page_" + (currentPage + 1)));
+                }
+                rows.add(navRow);
+                
+                markup.setKeyboard(rows);
+                sendMsg(chatId, body.toString(), markup);
             } catch (Exception e) {
                 sendMsg(chatId, "❌ " + e.getMessage());
             }
