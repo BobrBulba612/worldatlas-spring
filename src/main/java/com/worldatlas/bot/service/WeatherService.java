@@ -19,8 +19,8 @@ public class WeatherService {
     private final RestTemplate restTemplate = new RestTemplate();
     
     public Map<String, Object> getWeather(String cityName) {
-        if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("OpenWeatherMap API key not configured");
+        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("YOUR_API_KEY_HERE")) {
+            log.debug("OpenWeatherMap API key not configured, skipping weather");
             return null;
         }
         
@@ -54,7 +54,11 @@ public class WeatherService {
             
             return weather;
         } catch (Exception e) {
-            log.error("Error fetching weather for {}: {}", cityName, e.getMessage());
+            if (e.getMessage() != null && e.getMessage().contains("401")) {
+                log.error("Invalid OpenWeatherMap API key. Get one at https://openweathermap.org/api");
+            } else {
+                log.debug("Weather unavailable for {}: {}", cityName, e.getMessage());
+            }
             return null;
         }
     }

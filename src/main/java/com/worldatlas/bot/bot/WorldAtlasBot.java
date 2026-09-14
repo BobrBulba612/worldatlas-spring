@@ -1368,7 +1368,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         // ========== КОМАНДА /tickets ==========
         if (text.equals("/tickets") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
             try {
-                List<SupportMessage> tickets = supportService.getAllTickets();
+                List<SupportMessage> tickets = supportService.getUnanswered();
                 
                 if (tickets.isEmpty()) {
                     sendMsg(chatId, "en".equals(lang) ? "✅ No support tickets." : "✅ Нет обращений в поддержку.");
