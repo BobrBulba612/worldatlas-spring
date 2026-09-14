@@ -17,6 +17,7 @@ import java.util.Locale;
 public class CityService {
     
     private final CityRepository cityRepository;
+    private final WeatherService weatherService;
 
     private static final Map<String, String> EN_TO_RU = Map.ofEntries(
         Map.entry("moscow", "москва"),
@@ -376,8 +377,9 @@ public class CityService {
         Map.entry("Антарктида", "Antarctica")
     );
 
-    public CityService(CityRepository cityRepository) {
+    public CityService(CityRepository cityRepository, WeatherService weatherService) {
         this.cityRepository = cityRepository;
+        this.weatherService = weatherService;
     }
       @PostConstruct
     public void initializeDefaultCities() {
@@ -883,6 +885,34 @@ public class CityService {
     }
     public String getCityInfo(City city, String lang) {
         return getCityInfo(city, lang, "24");
+    }
+    
+    public String getCityInfoWithWeather(City city, String lang, String timeFormat) {
+        String baseInfo = getCityInfo(city, lang, timeFormat);
+        
+        // Получаем погоду
+        Map<String, Object> weather = weatherService.getWeather(city.getName());
+        if (weather != null) {
+            String desc = (String) weather.get("description");
+            String emoji = weatherService.getWeatherEmoji(desc);
+            Double temp = (Double) weather.get("temp");
+            Double feelsLike = (Double) weather.get("feelsLike");
+            Integer humidity = (Integer) weather.get("humidity");
+            
+            if ("en".equals(lang)) {
+                baseInfo += "\n\n🌤️ <b>Weather:</b>\n" +
+                    emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
+                    "🌡️ " + String.format("%.0f°C (feels like %.0f°C)", temp, feelsLike) + "\n" +
+                    "💧 Humidity: " + humidity + "%";
+            } else {
+                baseInfo += "\n\n🌤️ <b>Погода:</b>\n" +
+                    emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
+                    "🌡️ " + String.format("%.0f°C (ощущается как %.0f°C)", temp, feelsLike) + "\n" +
+                    "💧 Влажность: " + humidity + "%";
+            }
+        }
+        
+        return baseInfo;
     }
     
     public String getCityInfo(City city, String lang, String timeFormat) {
