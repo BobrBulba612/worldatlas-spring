@@ -1,5 +1,8 @@
 package com.worldatlas.bot.bot;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import lombok.extern.slf4j.Slf4j;
 
 import com.worldatlas.bot.entity.City;
@@ -47,6 +50,7 @@ import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScope
 
 @Slf4j
 public class WorldAtlasBot extends TelegramLongPollingBot {
+    private static final Logger log = LoggerFactory.getLogger(WorldAtlasBot.class);
     private final UserService userService;
     private final CityService cityService;
     private final ReminderService reminderService;
@@ -148,7 +152,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             requestRu.setLanguageCode("ru");
             execute(requestRu);
             
-            System.out.println("✅ Команды установлены на двух языках");
+            log.info("✅ Команды установлены на двух языках");
         } catch (Exception e) {
             System.out.println("❌ Ошибка установки команд: " + e.getMessage());
             e.printStackTrace();
