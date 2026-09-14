@@ -893,51 +893,52 @@ public class CityService {
         return getCityInfo(city, lang, "24");
     }
     
-    public String getCityInfoWithWeather(City city, String lang, String timeFormat) {
+    public String getCityInfoWithWeather(City city, String lang, String timeFormat, com.worldatlas.bot.entity.User user) {
         String baseInfo = getCityInfo(city, lang, timeFormat);
         
-        // Получаем погоду
-        Map<String, Object> weather = weatherService.getWeather(city.getName());
-        if (weather != null) {
-            String desc = (String) weather.get("description");
-            String emoji = weatherService.getWeatherEmoji(desc);
-            Double temp = (Double) weather.get("temp");
-            Double feelsLike = (Double) weather.get("feelsLike");
-            Integer humidity = (Integer) weather.get("humidity");
-            Integer sunrise = (Integer) weather.get("sunrise");
-            Integer sunset = (Integer) weather.get("sunset");
-            
-            // Форматируем восход/закат
-            String sunriseTime = "";
-            String sunsetTime = "";
-            if (sunrise != null && sunset != null) {
-                java.time.Instant sunriseInstant = java.time.Instant.ofEpochSecond(sunrise);
-                java.time.Instant sunsetInstant = java.time.Instant.ofEpochSecond(sunset);
-                java.time.ZoneId zone = java.time.ZoneId.of(city.getTimezone());
+        boolean showWeather = user != null && user.getShowWeather() != null && user.getShowWeather();
+        boolean showSunriseSunset = user != null && user.getShowSunriseSunset() != null && user.getShowSunriseSunset();
+
+        if (showWeather) {
+            // Получаем погоду
+            Map<String, Object> weather = weatherService.getWeather(city.getName());
+            if (weather != null) {
+                String desc = (String) weather.get("description");
+                String emoji = weatherService.getWeatherEmoji(desc);
+                Double temp = (Double) weather.get("temp");
+                Double feelsLike = (Double) weather.get("feelsLike");
+                Integer humidity = (Integer) weather.get("humidity");
+                Integer sunrise = (Integer) weather.get("sunrise");
+                Integer sunset = (Integer) weather.get("sunset");
                 
-                sunriseTime = java.time.ZonedDateTime.ofInstant(sunriseInstant, zone)
-                    .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-                sunsetTime = java.time.ZonedDateTime.ofInstant(sunsetInstant, zone)
-                    .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-            }
-            
-            if ("en".equals(lang)) {
-                baseInfo += "\n\n🌤️ <b>Weather:</b>\n" +
-                    emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
-                    "🌡️ " + String.format("%.0f°C (feels like %.0f°C)", temp, feelsLike) + "\n" +
-                    "💧 Humidity: " + humidity + "%";
-                
-                if (!sunriseTime.isEmpty()) {
-                    baseInfo += "\n🌅 Sunrise: " + sunriseTime + "\n🌇 Sunset: " + sunsetTime;
+                if ("en".equals(lang)) {
+                    baseInfo += "\n\n🌤️ <b>Weather:</b>\n" +
+                        emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
+                        "🌡️ " + String.format("%.0f°C (feels like %.0f°C)", temp, feelsLike) + "\n" +
+                        "💧 Humidity: " + humidity + "%";
+                } else {
+                    baseInfo += "\n\n🌤️ <b>Погода:</b>\n" +
+                        emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
+                        "🌡️ " + String.format("%.0f°C (ощущается как %.0f°C)", temp, feelsLike) + "\n" +
+                        "💧 Влажность: " + humidity + "%";
                 }
-            } else {
-                baseInfo += "\n\n🌤️ <b>Погода:</b>\n" +
-                    emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
-                    "🌡️ " + String.format("%.0f°C (ощущается как %.0f°C)", temp, feelsLike) + "\n" +
-                    "💧 Влажность: " + humidity + "%";
                 
-                if (!sunriseTime.isEmpty()) {
-                    baseInfo += "\n🌅 Восход: " + sunriseTime + "\n🌇 Закат: " + sunsetTime;
+                // Форматируем восход/закат если включено
+                if (showSunriseSunset && sunrise != null && sunset != null) {
+                    java.time.Instant sunriseInstant = java.time.Instant.ofEpochSecond(sunrise);
+                    java.time.Instant sunsetInstant = java.time.Instant.ofEpochSecond(sunset);
+                    java.time.ZoneId zone = java.time.ZoneId.of(city.getTimezone());
+                    
+                    String sunriseTime = java.time.ZonedDateTime.ofInstant(sunriseInstant, zone)
+                        .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                    String sunsetTime = java.time.ZonedDateTime.ofInstant(sunsetInstant, zone)
+                        .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                    
+                    if ("en".equals(lang)) {
+                        baseInfo += "\n🌅 Sunrise: " + sunriseTime + "\n🌇 Sunset: " + sunsetTime;
+                    } else {
+                        baseInfo += "\n🌅 Восход: " + sunriseTime + "\n🌇 Закат: " + sunsetTime;
+                    }
                 }
             }
         }
@@ -946,7 +947,6 @@ public class CityService {
         try {
             String country = city.getCountry();
             if (country != null && !country.isEmpty()) {
-                // Маппинг стран на коды (примеры)
                 String countryCode = getCountryCode(country);
                 if (countryCode != null) {
                     List<Map<String, Object>> todayHolidays = holidayService.getTodayHolidays(countryCode);

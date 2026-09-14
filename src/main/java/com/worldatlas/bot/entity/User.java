@@ -25,6 +25,12 @@ public class User {
     private String language = "ru";
     private String timeFormat = "24";
     private String homeCity;
+
+    @Column(name = "show_weather")
+    private Boolean showWeather = true;
+
+    @Column(name = "show_sunrise_sunset")
+    private Boolean showSunriseSunset = true;
     private boolean subscribed = false;
     
     @Enumerated(EnumType.STRING)
@@ -38,4 +44,22 @@ public class User {
     private Set<String> favorites = new HashSet<>();
     
     public enum Role { USER, MODERATOR, ADMIN, OWNER }
+
+
+    public Boolean getShowWeather() {
+        return showWeather;
+    }
+
+    public void setShowWeather(Boolean showWeather) {
+        this.showWeather = showWeather;
+    }
+
+    public Boolean getShowSunriseSunset() {
+        return showSunriseSunset;
+    }
+
+    public void setShowSunriseSunset(Boolean showSunriseSunset) {
+        this.showSunriseSunset = showSunriseSunset;
+    }
+
 }
