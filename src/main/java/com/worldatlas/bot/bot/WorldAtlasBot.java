@@ -59,6 +59,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private final SupportService supportService;
     private final TelegramRetryService retryService;
     private final RateLimitService rateLimitService;
+    private final com.worldatlas.bot.service.ErrorNotifier errorNotifier;
     private final LocalizationService localization;
     private final TimeService timeService;
     private final CustomCityService customCityService;
@@ -84,7 +85,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private static final String STATE_WAITING_DELETE_CUSTOM_CITY = "WAITING_DELETE_CUSTOM_CITY";
     private static final String OWNER_SECRET_KEY = "DenisWorldAtlasSupreme2026!@#Owner";
 
-    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, TelegramRetryService retryService, RateLimitService rateLimitService, String botUsername, String botToken) {
+    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, TelegramRetryService retryService, RateLimitService rateLimitService, com.worldatlas.bot.service.ErrorNotifier errorNotifier, String botUsername, String botToken) {
         super(options, botToken);
         this.userService = userService;
         this.cityService = cityService;
@@ -95,6 +96,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         this.supportService = supportService;
         this.retryService = retryService;
         this.rateLimitService = rateLimitService;
+        this.errorNotifier = errorNotifier;
         this.botUsername = botUsername;
         this.botToken = botToken;
     
