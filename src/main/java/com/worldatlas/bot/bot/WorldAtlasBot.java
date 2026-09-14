@@ -2527,7 +2527,183 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     execute(del);
                 } catch (Exception ignored) {}
             }
-            else if (data.startsWith("ticket_status_")) {
+            // ========== КНОПКА: Пользователи ==========
+            else if (data.equals("admin_users")) {
+                answerCallback(callbackId);
+                User currentUser = userService.getUser(chatId);
+                
+                if (currentUser == null || (currentUser.getRole() != User.Role.OWNER && currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.MODERATOR)) {
+                    editMessageText(chatId, messageId, "❌ No permission.");
+                    return;
+                }
+                
+                List<User> users = userService.getAllUsers();
+                int pageSize = 10;
+                int totalPages = (users.size() + pageSize - 1) / pageSize;
+                
+                StringBuilder body = new StringBuilder();
+                body.append("👥 <b>USERS (Page 1/" + totalPages + ")</b>\n\n");
+                
+                int end = Math.min(pageSize, users.size());
+                int count = 0;
+                for (int i = end - 1; i >= 0; i--, count++) {
+                    User u = users.get(i);
+                    String name = u.getFirstName() != null ? u.getFirstName() : (u.getUsername() != null ? "@" + u.getUsername() : "ID:" + u.getChatId());
+                    String roleEmoji = switch (u.getRole()) {
+                        case OWNER -> "💎";
+                        case ADMIN -> "👑";
+                        case MODERATOR -> "🛡️";
+                        case USER -> "👤";
+                    };
+                    body.append(count + 1).append(". ").append(roleEmoji).append(" ").append(name).append(" (<code>").append(u.getChatId()).append("</code>)\n");
+                }
+                
+                // Кнопки навигации
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                
+                List<InlineKeyboardButton> navRow = new ArrayList<>();
+                navRow.add(createInlineButton("📊 1/" + totalPages, "users_page_1"));
+                if (totalPages > 1) {
+                    navRow.add(createInlineButton("Next ➡️", "users_page_2"));
+                }
+                rows.add(navRow);
+                
+                List<InlineKeyboardButton> backRow = new ArrayList<>();
+                backRow.add(createInlineButton("🔙 Back", "admin_stats"));
+                rows.add(backRow);
+                
+                markup.setKeyboard(rows);
+                
+                EditMessageText edit = new EditMessageText();
+                edit.setChatId(chatId);
+                edit.setMessageId(messageId);
+                edit.setText(body.toString());
+                edit.setParseMode("HTML");
+                edit.setReplyMarkup(markup);
+                
+                execute(edit);
+            }
+            // ========== КНОПКА: Обращения ==========
+            else if (data.equals("admin_tickets")) {
+                answerCallback(callbackId);
+                User currentUser = userService.getUser(chatId);
+                
+                if (currentUser == null || (currentUser.getRole() != User.Role.OWNER && currentUser.getRole() != User.Role.ADMIN && currentUser.getRole() != User.Role.MODERATOR)) {
+                    editMessageText(chatId, messageId, "❌ No permission.");
+                    return;
+                }
+                
+                List<SupportMessage> tickets = supportService.getUnanswered();
+                
+                if (tickets.isEmpty()) {
+                    editMessageText(chatId, messageId, "✅ No unanswered tickets!");
+                    return;
+                }
+                
+                StringBuilder body = new StringBuilder();
+                body.append("📨 <b>UNANSWERED TICKETS</b>\n\n");
+                
+                int count = 0;
+                for (SupportMessage ticket : tickets) {
+                    if (count >= 10) break;
+                    count++;
+                    body.append(count).append(". From: <code>").append(ticket.getChatId()).append("</code>\n");
+                    body.append("💬 ").append(ticket.getText() != null ? ticket.getText().substring(0, Math.min(50, ticket.getText().length())) : "N/A").append("...\n\n");
+                }
+                
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                
+                List<InlineKeyboardButton> backRow = new ArrayList<>();
+                backRow.add(createInlineButton("🔙 Back", "admin_stats"));
+                rows.add(backRow);
+                
+                markup.setKeyboard(rows);
+                
+                EditMessageText edit = new EditMessageText();
+                edit.setChatId(chatId);
+                edit.setMessageId(messageId);
+                edit.setText(body.toString());
+                edit.setParseMode("HTML");
+                edit.setReplyMarkup(markup);
+                
+                execute(edit);
+            }
+            // ========== КНОПКА: Создать пользовательский город ==========
+            else if (data.equals("create_custom_city")) {
+                answerCallback(callbackId);
+                User currentUser = userService.getUser(chatId);
+                String currentLang = currentUser != null ? currentUser.getLanguage() : "en";
+                userStates.put(chatId, STATE_WAITING_CUSTOM_CITY_NAME);
+                sendMsg(chatId, "en".equals(currentLang) ? 
+                    "🏙️ Enter the name of your custom city:" :
+                    "🏙️ Введите название вашего пользовательского города:");
+            }
+            // ========== ПАГИНАЦИЯ ПОЛЬЗОВАТЕЛЕЙ ==========
+            else if (data.startsWith("users_page_")) {
+                answerCallback(callbackId);
+                int page = Integer.parseInt(data.replace("users_page_", ""));
+                
+                List<User> users = userService.getAllUsers();
+                int pageSize = 10;
+                int totalPages = (users.size() + pageSize - 1) / pageSize;
+                
+                if (page < 1 || page > totalPages) {
+                    editMessageText(chatId, messageId, "❌ Invalid page");
+                    return;
+                }
+                
+                int start = (page - 1) * pageSize;
+                int end = Math.min(start + pageSize, users.size());
+                
+                StringBuilder body = new StringBuilder();
+                body.append("👥 <b>USERS (Page " + page + "/" + totalPages + ")</b>\n\n");
+                
+                int count = 0;
+                for (int i = end - 1; i >= start; i--, count++) {
+                    User u = users.get(i);
+                    String name = u.getFirstName() != null ? u.getFirstName() : (u.getUsername() != null ? "@" + u.getUsername() : "ID:" + u.getChatId());
+                    String roleEmoji = switch (u.getRole()) {
+                        case OWNER -> "💎";
+                        case ADMIN -> "👑";
+                        case MODERATOR -> "🛡️";
+                        case USER -> "👤";
+                    };
+                    body.append(count + 1).append(". ").append(roleEmoji).append(" ").append(name).append(" (<code>").append(u.getChatId()).append("</code>)\n");
+                }
+                
+                // Кнопки навигации
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                
+                List<InlineKeyboardButton> navRow = new ArrayList<>();
+                if (page > 1) {
+                    navRow.add(createInlineButton("⬅️ Prev", "users_page_" + (page - 1)));
+                }
+                navRow.add(createInlineButton("📊 " + page + "/" + totalPages, "users_page_" + page));
+                if (page < totalPages) {
+                    navRow.add(createInlineButton("Next ➡️", "users_page_" + (page + 1)));
+                }
+                rows.add(navRow);
+                
+                List<InlineKeyboardButton> backRow = new ArrayList<>();
+                backRow.add(createInlineButton("🔙 Back", "admin_stats"));
+                rows.add(backRow);
+                
+                markup.setKeyboard(rows);
+                
+                EditMessageText edit = new EditMessageText();
+                edit.setChatId(chatId);
+                edit.setMessageId(messageId);
+                edit.setText(body.toString());
+                edit.setParseMode("HTML");
+                edit.setReplyMarkup(markup);
+                
+                execute(edit);
+            }
+
+                        else if (data.startsWith("ticket_status_")) {
                 answerCallback(callbackId);
                 String[] parts = data.split("_");
                 if (parts.length >= 4) {
