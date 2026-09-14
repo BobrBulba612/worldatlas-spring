@@ -1,0 +1,5 @@
+
+# OpenWeatherMap API для погоды
+# Получи бесплатный ключ на https://openweathermap.org/api
+# Зарегистрируйся и скопируй API key
+openweathermap.api.key=YOUR_API_KEY_HERE
