@@ -4,6 +4,7 @@ import com.worldatlas.bot.bot.WorldAtlasBot;
 import com.worldatlas.bot.service.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Configuration;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
@@ -23,6 +24,7 @@ public class BotConfig {
     private static final Object startLock = new Object();
 
     @Bean
+    @Lazy
     public WorldAtlasBot worldAtlasBot(UserService userService,
                                        CityService cityService,
                                        LocalizationService localization,
