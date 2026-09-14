@@ -1,5 +1,7 @@
 package com.worldatlas.bot.service;
 
+import org.springframework.cache.annotation.Cacheable;
+
 import com.worldatlas.bot.entity.City;
 import com.worldatlas.bot.repository.CityRepository;
 import jakarta.annotation.PostConstruct;
@@ -18,6 +20,7 @@ public class CityService {
     
     private final CityRepository cityRepository;
     private final WeatherService weatherService;
+    private final HolidayService holidayService;
 
     private static final Map<String, String> EN_TO_RU = Map.ofEntries(
         Map.entry("moscow", "москва"),
@@ -377,9 +380,10 @@ public class CityService {
         Map.entry("Антарктида", "Antarctica")
     );
 
-    public CityService(CityRepository cityRepository, WeatherService weatherService) {
+    public CityService(CityRepository cityRepository, WeatherService weatherService, HolidayService holidayService) {
         this.cityRepository = cityRepository;
         this.weatherService = weatherService;
+        this.holidayService = holidayService;
     }
       @PostConstruct
     public void initializeDefaultCities() {
@@ -850,6 +854,7 @@ public class CityService {
     }
       
 
+    @Cacheable(value = "cities", key = "#name.toLowerCase()")
     public City findCity(String name) {
         if (name == null) return null;
         String query = name.toLowerCase().trim();
@@ -858,6 +863,7 @@ public class CityService {
         return cityRepository.findById(query).orElse(null);
     }
 
+    @Cacheable(value = "cities", key = "#query.toLowerCase()")
     public List<City> searchCities(String query) {
         if (query == null || query.length() < 2) return List.of();
         return cityRepository.findByNameContainingIgnoreCase(query.trim());
@@ -936,6 +942,28 @@ public class CityService {
             }
         }
         
+        // Добавляем праздники если они есть
+        try {
+            String country = city.getCountry();
+            if (country != null && !country.isEmpty()) {
+                // Маппинг стран на коды (примеры)
+                String countryCode = getCountryCode(country);
+                if (countryCode != null) {
+                    List<Map<String, Object>> todayHolidays = holidayService.getTodayHolidays(countryCode);
+                    
+                    if (todayHolidays != null && !todayHolidays.isEmpty()) {
+                        baseInfo += "\n\n🎉 <b>" + ("en".equals(lang) ? "Today's holidays:" : "Сегодня праздники:") + "</b>";
+                        for (Map<String, Object> holiday : todayHolidays) {
+                            String holidayName = (String) holiday.get("localName");
+                            baseInfo += "\n• " + holidayName;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки получения праздников
+        }
+        
         return baseInfo;
     }
     
@@ -972,4 +1000,31 @@ public class CityService {
     public long count() {
         return cityRepository.count();
     }
+
+    private String getCountryCode(String country) {
+        if (country == null) return null;
+        
+        // Маппинг популярных стран
+        Map<String, String> mapping = Map.ofEntries(
+            Map.entry("Russia", "RU"),
+            Map.entry("Россия", "RU"),
+            Map.entry("United States", "US"),
+            Map.entry("USA", "US"),
+            Map.entry("United Kingdom", "GB"),
+            Map.entry("UK", "GB"),
+            Map.entry("Germany", "DE"),
+            Map.entry("France", "FR"),
+            Map.entry("Italy", "IT"),
+            Map.entry("Spain", "ES"),
+            Map.entry("Japan", "JP"),
+            Map.entry("China", "CN"),
+            Map.entry("India", "IN"),
+            Map.entry("Brazil", "BR"),
+            Map.entry("Australia", "AU"),
+            Map.entry("Canada", "CA")
+        );
+        
+        return mapping.get(country);
+    }
+
 }
