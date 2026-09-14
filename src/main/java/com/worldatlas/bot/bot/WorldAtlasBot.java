@@ -296,6 +296,41 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         }
 
         if (text.equals("/start")) {
+            // Проверяем, новый ли это пользователь
+            User newUser = userService.getUser(chatId);
+            boolean isNewUser = newUser == null || newUser.getLanguage() == null || newUser.getLanguage().isEmpty();
+            
+            if (isNewUser) {
+                // Онбординг для новых пользователей
+                String onboarding = "en".equals(lang) ?
+                    "👋 <b>Welcome to World Time Map Bot!</b>\n\n" +
+                    "I'll help you track time anywhere in the world.\n\n" +
+                    "✨ <b>Quick start:</b>\n" +
+                    "1️⃣ Use /search_city to find any city\n" +
+                    "2️⃣ Add cities to ⭐ Favorites\n" +
+                    "3️⃣ Set ⏰ Reminders for important times\n" +
+                    "4️⃣ Create 🏙️ Custom cities with any timezone\n\n" +
+                    "💡 <b>Pro tips:</b>\n" +
+                    "• Use @WorldTimeMapBot in any chat for inline mode\n" +
+                    "• Check /mystats to see your activity\n" +
+                    "• Open 🌍 Mini App for full experience\n\n" +
+                    "🚀 Ready? Let's start with finding your city!" :
+                    "👋 <b>Добро пожаловать в World Time Map Bot!</b>\n\n" +
+                    "Я помогу вам отслеживать время в любой точке мира.\n\n" +
+                    "✨ <b>Быстрый старт:</b>\n" +
+                    "1️⃣ Используйте /search_city для поиска города\n" +
+                    "2️⃣ Добавляйте города в ⭐ Избранное\n" +
+                    "3️⃣ Устанавливайте ⏰ Напоминания на важное время\n" +
+                    "4️⃣ Создавайте 🏙️ Свои города с любым часовым поясом\n\n" +
+                    "💡 <b>Полезные советы:</b>\n" +
+                    "• Используйте @WorldTimeMapBot в любом чате для inline-режима\n" +
+                    "• Проверьте /mystats чтобы увидеть вашу активность\n" +
+                    "• Откройте 🌍 Mini App для полного опыта\n\n" +
+                    "🚀 Готовы? Начнём с поиска вашего города!";
+                
+                sendMsg(chatId, onboarding, getMainMenuKeyboard(lang));
+                return;
+            }
             if (userService.isSubscribed(chatId)) {
                 sendWelcome(chatId, lang);
                 return;
@@ -1253,6 +1288,39 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
         
+        // ========== КОМАНДА /mystats (статистика пользователя) ==========
+        if (text.equals("/mystats") || text.equals("/stats")) {
+            try {
+                int favCount = userService.getFavorites(chatId).size();
+                int customCount = customCityService.getUserCustomCities(chatId).size();
+                Optional<Reminder> reminder = reminderService.getReminder(chatId);
+                List<SupportMessage> tickets = supportService.getUserMessages(chatId);
+                
+                String body = "en".equals(lang) ?
+                    "📊 <b>YOUR STATISTICS</b>\n\n" +
+                    "⭐ Favorite cities: <b>" + favCount + "</b>\n" +
+                    "🏙️ Custom cities: <b>" + customCount + "</b>\n" +
+                    "⏰ Active reminders: <b>" + (reminder.isPresent() ? 1 : 0) + "</b>\n" +
+                    "💬 Support tickets: <b>" + tickets.size() + "</b>\n" +
+                    "🌐 Language: <b>" + user.getLanguage().toUpperCase() + "</b>\n" +
+                    "🕐 Time format: <b>" + user.getTimeFormat() + "-hour</b>\n" +
+                    (user.getHomeCity() != null ? "🏠 Home city: <b>" + user.getHomeCity() + "</b>" : "") :
+                    "📊 <b>ВАША СТАТИСТИКА</b>\n\n" +
+                    "⭐ Избранных городов: <b>" + favCount + "</b>\n" +
+                    "🏙️ Своих городов: <b>" + customCount + "</b>\n" +
+                    "⏰ Активных напоминаний: <b>" + (reminder.isPresent() ? 1 : 0) + "</b>\n" +
+                    "💬 Обращений в поддержку: <b>" + tickets.size() + "</b>\n" +
+                    "🌐 Язык: <b>" + user.getLanguage().toUpperCase() + "</b>\n" +
+                    "🕐 Формат времени: <b>" + user.getTimeFormat() + "-часовой</b>\n" +
+                    (user.getHomeCity() != null ? "🏠 Домашний город: <b>" + user.getHomeCity() + "</b>" : "");
+                
+                sendMsg(chatId, body);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+
         // ========== КОМАНДА /stats ==========
         if (text.equals("/stats") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
             try {
@@ -1715,7 +1783,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             if (state.equals(STATE_WAITING_CITY)) {
                 userStates.remove(chatId);
                 City city = cityService.findCity(text);
-                if (city != null) sendMsg(chatId, cityService.getCityInfo(city, lang, user.getTimeFormat()), getCityActionsKeyboard(city.getName(), lang));
+                if (city != null) sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat()), getCityActionsKeyboard(city.getName(), lang));
                 else sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
             } else if (state.equals(STATE_WAITING_REMOVE)) {
                 userStates.remove(chatId);
@@ -1758,7 +1826,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
         City city = cityService.findCity(text);
         if (city != null) {
-            sendMsg(chatId, cityService.getCityInfo(city, lang, user.getTimeFormat()), getCityActionsKeyboard(city.getName(), lang));
+            sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat()), getCityActionsKeyboard(city.getName(), lang));
         } else {
             sendMsg(chatId, "en".equals(lang) ? "❓ Unknown command or city not found. Use /help" : "❓ Неизвестная команда или город не найден. Используйте /help");
         }

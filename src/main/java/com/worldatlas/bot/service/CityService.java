@@ -898,17 +898,41 @@ public class CityService {
             Double temp = (Double) weather.get("temp");
             Double feelsLike = (Double) weather.get("feelsLike");
             Integer humidity = (Integer) weather.get("humidity");
+            Integer sunrise = (Integer) weather.get("sunrise");
+            Integer sunset = (Integer) weather.get("sunset");
+            
+            // Форматируем восход/закат
+            String sunriseTime = "";
+            String sunsetTime = "";
+            if (sunrise != null && sunset != null) {
+                java.time.Instant sunriseInstant = java.time.Instant.ofEpochSecond(sunrise);
+                java.time.Instant sunsetInstant = java.time.Instant.ofEpochSecond(sunset);
+                java.time.ZoneId zone = java.time.ZoneId.of(city.getTimezone());
+                
+                sunriseTime = java.time.ZonedDateTime.ofInstant(sunriseInstant, zone)
+                    .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                sunsetTime = java.time.ZonedDateTime.ofInstant(sunsetInstant, zone)
+                    .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+            }
             
             if ("en".equals(lang)) {
                 baseInfo += "\n\n🌤️ <b>Weather:</b>\n" +
                     emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
                     "🌡️ " + String.format("%.0f°C (feels like %.0f°C)", temp, feelsLike) + "\n" +
                     "💧 Humidity: " + humidity + "%";
+                
+                if (!sunriseTime.isEmpty()) {
+                    baseInfo += "\n🌅 Sunrise: " + sunriseTime + "\n🌇 Sunset: " + sunsetTime;
+                }
             } else {
                 baseInfo += "\n\n🌤️ <b>Погода:</b>\n" +
                     emoji + " " + desc.substring(0, 1).toUpperCase() + desc.substring(1) + "\n" +
                     "🌡️ " + String.format("%.0f°C (ощущается как %.0f°C)", temp, feelsLike) + "\n" +
                     "💧 Влажность: " + humidity + "%";
+                
+                if (!sunriseTime.isEmpty()) {
+                    baseInfo += "\n🌅 Восход: " + sunriseTime + "\n🌇 Закат: " + sunsetTime;
+                }
             }
         }
         
