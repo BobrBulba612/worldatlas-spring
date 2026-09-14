@@ -9,7 +9,9 @@ import lombok.AllArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "cities")
+@Table(name = "cities", indexes = {
+    @Index(name = "idx_cities_name", columnList = "name")
+})
 public class City {
     @Id
     private String name;

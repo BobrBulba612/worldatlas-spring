@@ -10,7 +10,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "support_messages")
+@Table(name = "support_messages", indexes = {
+    @Index(name = "idx_support_chat_id", columnList = "chatId"),
+    @Index(name = "idx_support_status", columnList = "status")
+})
 public class SupportMessage {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

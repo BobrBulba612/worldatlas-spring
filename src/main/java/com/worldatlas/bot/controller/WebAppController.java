@@ -17,7 +17,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"https://web.telegram.org", "https://*.telegram.org"}, allowCredentials = "true")
 public class WebAppController {
 
     private final UserService userService;
