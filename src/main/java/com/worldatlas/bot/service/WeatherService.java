@@ -16,7 +16,16 @@ public class WeatherService {
     @Value("${openweathermap.api.key:}")
     private String apiKey;
     
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+    
+    public WeatherService() {
+        this.restTemplate = new RestTemplate();
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = 
+            new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);  // 3 секунды на подключение
+        factory.setReadTimeout(3000);     // 3 секунды на чтение
+        this.restTemplate.setRequestFactory(factory);
+    }
     
     public Map<String, Object> getWeather(String cityName) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("YOUR_API_KEY_HERE")) {

@@ -13,7 +13,16 @@ import java.time.LocalDate;
 public class HolidayService {
     private static final Logger log = LoggerFactory.getLogger(HolidayService.class);
     
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+    
+    public HolidayService() {
+        this.restTemplate = new RestTemplate();
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = 
+            new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);  // 3 секунды
+        factory.setReadTimeout(3000);     // 3 секунды
+        this.restTemplate.setRequestFactory(factory);
+    }
     
     /**
      * Получает праздники для страны на текущий день
