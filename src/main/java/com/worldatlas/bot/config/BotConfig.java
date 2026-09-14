@@ -26,12 +26,13 @@ public class BotConfig {
                                        LocalizationService localization,
                                        TimeService timeService,
                                        CustomCityService customCityService,
-                                       ReminderService reminderService, SupportService supportService) {
+                                       ReminderService reminderService, SupportService supportService,
+                                       com.worldatlas.bot.service.TelegramRetryService retryService) {
         try {
             DefaultBotOptions options = new DefaultBotOptions();
             System.out.println("ℹ️ Работаем без прокси (прямое подключение)");
 
-            WorldAtlasBot bot = new WorldAtlasBot(options, userService, cityService, localization, timeService, customCityService, reminderService, supportService, botUsername, botToken);
+            WorldAtlasBot bot = new WorldAtlasBot(options, userService, cityService, localization, timeService, customCityService, reminderService, supportService, retryService, botUsername, botToken);
             botInstance = bot;
 
             TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
