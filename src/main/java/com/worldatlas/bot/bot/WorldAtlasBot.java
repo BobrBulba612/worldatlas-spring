@@ -2135,6 +2135,9 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     "✅ Город <b>" + displayName + "</b> успешно добавлен в избранное!";
                 sendMsg(chatId, msg);
             }
+        } else {
+            // Если кнопка не обработана в handleCallback, передаём в onCallbackQueryReceived
+            onCallbackQueryReceived(update.getCallbackQuery());
         }
 
     }
