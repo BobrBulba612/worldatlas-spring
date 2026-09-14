@@ -19,6 +19,8 @@ public class BotConfig {
     private String botToken;
 
     private static WorldAtlasBot botInstance;
+    private static volatile boolean botStarted = false;
+    private static final Object startLock = new Object();
 
     @Bean
     public WorldAtlasBot worldAtlasBot(UserService userService,
@@ -30,6 +32,15 @@ public class BotConfig {
                                        com.worldatlas.bot.service.TelegramRetryService retryService,
                                        com.worldatlas.bot.service.RateLimitService rateLimitService,
                                        com.worldatlas.bot.service.ErrorNotifier errorNotifier) {
+        // Защита от запуска нескольких экземпляров бота
+        synchronized (startLock) {
+            if (botStarted) {
+                System.err.println("⚠️ Бот уже запущен! Пропускаем повторную инициализацию.");
+                return botInstance;
+            }
+            botStarted = true;
+        }
+
         try {
             DefaultBotOptions options = new DefaultBotOptions();
             System.out.println("ℹ️ Работаем без прокси (прямое подключение)");
@@ -42,6 +53,7 @@ public class BotConfig {
 
             System.out.println("✅ Бот успешно зарегистрирован!");
         } catch (Exception e) {
+            botStarted = false; // Сбрасываем флаг при ошибке
             System.err.println("❌ Ошибка регистрации бота: " + e.getMessage());
             e.printStackTrace();
         }

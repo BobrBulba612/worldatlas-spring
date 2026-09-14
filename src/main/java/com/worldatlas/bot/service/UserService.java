@@ -23,7 +23,7 @@ public class UserService {
             user.setFirstName(firstName);
             user.setLastName(lastName);
             return userRepository.save(user);
-        }).orElseGet(() -> userRepository.save(new User(chatId, username, firstName, lastName, "ru", "24", null, false, User.Role.USER, false, new HashSet<>())));
+        }).orElseGet(() -> userRepository.save(new User(chatId, username, firstName, lastName, "ru", "24", null, true, true, false, User.Role.USER, false, new HashSet<>())));
     }
 
     public User getUser(Long chatId) {
