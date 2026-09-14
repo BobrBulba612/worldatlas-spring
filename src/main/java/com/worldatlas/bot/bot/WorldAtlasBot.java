@@ -47,6 +47,7 @@ import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeAllPrivateChats;
+import com.worldatlas.bot.service.TelegramRetryService;
 
 @Slf4j
 public class WorldAtlasBot extends TelegramLongPollingBot {
@@ -55,6 +56,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private final CityService cityService;
     private final ReminderService reminderService;
     private final SupportService supportService;
+    private final TelegramRetryService retryService;
     private final LocalizationService localization;
     private final TimeService timeService;
     private final CustomCityService customCityService;
@@ -80,7 +82,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private static final String STATE_WAITING_DELETE_CUSTOM_CITY = "WAITING_DELETE_CUSTOM_CITY";
     private static final String OWNER_SECRET_KEY = "DenisWorldAtlasSupreme2026!@#Owner";
 
-    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, String botUsername, String botToken) {
+    public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, TelegramRetryService retryService, String botUsername, String botToken) {
         super(options, botToken);
         this.userService = userService;
         this.cityService = cityService;
@@ -89,6 +91,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         this.customCityService = customCityService;
         this.reminderService = reminderService;
         this.supportService = supportService;
+        this.retryService = retryService;
         this.botUsername = botUsername;
         this.botToken = botToken;
     
@@ -2376,17 +2379,58 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         List<City> cities = cityService.searchCities(query);
         List<InlineQueryResult> results = new ArrayList<>();
         int limit = Math.min(cities.size(), 30);
+        
         for (int i = 0; i < limit; i++) {
             City city = cities.get(i);
-            InlineQueryResultArticle article = new InlineQueryResultArticle();
-            article.setId("city_" + i);
-            article.setTitle(capitalize(city.getName()));
-            article.setDescription(city.getCountry());
-            InputTextMessageContent content = new InputTextMessageContent();
-            content.setMessageText(cityService.getCityInfo(city, "ru", "24"));
-            content.setParseMode("HTML");
-            article.setInputMessageContent(content);
-            results.add(article);
+            try {
+                String lang = "en"; // По умолчанию английский для inline
+                
+                // Получаем информацию о городе с погодой
+                String cityInfo = cityService.getCityInfoWithWeather(city, lang, "24");
+                
+                // Форматируем для inline результата
+                String displayName = cityService.getCityNameLocalized(city, lang);
+                String countryName = cityService.getCountryLocalized(city, lang);
+                
+                // Извлекаем время из cityInfo
+                String timeStr = "";
+                if (cityInfo.contains("🕐")) {
+                    int start = cityInfo.indexOf("🕐") + 2;
+                    int end = cityInfo.indexOf("|", start);
+                    if (end > start) {
+                        timeStr = cityInfo.substring(start, end).trim();
+                    }
+                }
+                
+                // Извлекаем погоду если есть
+                String weatherInfo = "";
+                if (cityInfo.contains("🌤️")) {
+                    int start = cityInfo.indexOf("🌤️");
+                    int end = cityInfo.indexOf("\n\n", start);
+                    if (end > start) {
+                        weatherInfo = cityInfo.substring(start, end).replace("\n", " | ").trim();
+                    }
+                }
+                
+                String description = countryName + " • " + (timeStr.isEmpty() ? "N/A" : timeStr);
+                if (!weatherInfo.isEmpty()) {
+                    description += " • " + weatherInfo;
+                }
+                
+                InlineQueryResultArticle article = new InlineQueryResultArticle();
+                article.setId(String.valueOf(i));
+                article.setTitle(displayName);
+                article.setDescription(description);
+                
+                InputTextMessageContent content = new InputTextMessageContent();
+                content.setMessageText(cityInfo);
+                content.setParseMode("HTML");
+                article.setInputMessageContent(content);
+                
+                results.add(article);
+            } catch (Exception e) {
+                log.warn("Error processing inline result for city {}: {}", city.getName(), e.getMessage());
+            }
         }
         try {
             AnswerInlineQuery answer = new AnswerInlineQuery();
@@ -2583,6 +2627,20 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
         } catch (Exception e) {
             answerCallback(callbackId);
+        }
+    }
+
+
+    
+    /**
+     * Безопасная отправка сообщения с автоматическим retry
+     */
+    private <T extends java.io.Serializable> T safeExecute(org.telegram.telegrambots.meta.api.methods.BotApiMethod<T> method) {
+        try {
+            return retryService.executeWithRetry(this, method);
+        } catch (Exception e) {
+            log.error("Failed to execute after retries: {}", e.getMessage());
+            return null;
         }
     }
 
