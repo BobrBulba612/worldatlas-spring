@@ -1332,6 +1332,88 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         }
 
         // ========== КОМАНДА /stats ==========
+        // ========== КОМАНДА /weather ==========
+        if (text.startsWith("/weather ")) {
+            String cityName = text.substring(9).trim();
+            City city = cityService.findCity(cityName);
+            if (city == null) {
+                List<City> found = cityService.searchCities(cityName);
+                if (!found.isEmpty()) city = found.get(0);
+            }
+            if (city != null) {
+                sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
+            } else {
+                sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
+            }
+            return;
+        }
+
+        // ========== КОМАНДА /compare ==========
+        if (text.startsWith("/compare ")) {
+            String[] parts = text.substring(9).trim().split("\\s+");
+            if (parts.length < 2) {
+                sendMsg(chatId, "en".equals(lang) ? "Usage: /compare City1 City2" : "Использование: /compare Город1 Город2");
+                return;
+            }
+            City city1 = cityService.findCity(parts[0]);
+            City city2 = cityService.findCity(parts[1]);
+            if (city1 == null || city2 == null) {
+                sendMsg(chatId, "en".equals(lang) ? "❌ One or both cities not found." : "❌ Один или оба города не найдены.");
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("📊 <b>").append("en".equals(lang) ? "COMPARISON" : "СРАВНЕНИЕ").append("</b>\\n\\n");
+            java.time.ZoneId z1 = java.time.ZoneId.of(city1.getTimezone());
+            java.time.ZoneId z2 = java.time.ZoneId.of(city2.getTimezone());
+            java.time.ZonedDateTime t1 = java.time.ZonedDateTime.now(z1);
+            java.time.ZonedDateTime t2 = java.time.ZonedDateTime.now(z2);
+            long diffMinutes = java.time.Duration.between(t2, t1).toMinutes();
+            String n1 = cityService.getCityNameLocalized(city1, lang);
+            String n2 = cityService.getCityNameLocalized(city2, lang);
+            String tf = user.getTimeFormat();
+            String tp = "12".equals(tf) ? "hh:mm a" : "HH:mm";
+            sb.append("🏙️ ").append(n1).append(": ").append(t1.format(java.time.format.DateTimeFormatter.ofPattern(tp))).append("\\n");
+            sb.append("🏙️ ").append(n2).append(": ").append(t2.format(java.time.format.DateTimeFormatter.ofPattern(tp))).append("\\n\\n");
+            sb.append("⏱️ ").append("en".equals(lang) ? "Time difference: " : "Разница во времени: ");
+            long hours = Math.abs(diffMinutes) / 60;
+            long mins = Math.abs(diffMinutes) % 60;
+            sb.append(hours).append("h ").append(mins).append("m");
+            sendMsg(chatId, sb.toString());
+            return;
+        }
+
+        // ========== УПРАВЛЕНИЕ ВЕРСИЯМИ ==========
+        if (text.equals("/enable_new_version") && chatId == 1319065617L) {
+            featureFlagService.enableForAll();
+            sendMsg(chatId, "✅ Новая версия включена для ВСЕХ пользователей!");
+            return;
+        }
+        if (text.equals("/disable_new_version") && chatId == 1319065617L) {
+            featureFlagService.disableForAll();
+            sendMsg(chatId, "❌ Новая версия выключена для всех. Только бета-тестеры.");
+            return;
+        }
+        if (text.equals("/beta_status") && chatId == 1319065617L) {
+            String status = featureFlagService.isGlobalEnabled() ? "🟢 ВКЛЮЧЕНА ДЛЯ ВСЕХ" : "🔴 ТОЛЬКО БЕТА";
+            sendMsg(chatId, "📊 Статус версии:\\n" + status + "\\n👥 Бета-тестеров: " + featureFlagService.getBetaCount());
+            return;
+        }
+        if (text.equals("/join_beta")) {
+            featureFlagService.addBetaUser(chatId);
+            sendMsg(chatId, "en".equals(lang) ? 
+                "✅ You joined beta testing! New features are now available." :
+                "✅ Вы присоединились к бета-тестированию! Новые функции доступны.");
+            return;
+        }
+        if (text.equals("/leave_beta")) {
+            featureFlagService.removeBetaUser(chatId);
+            sendMsg(chatId, "en".equals(lang) ?
+                "✅ You left beta testing." :
+                "✅ Вы вышли из бета-тестирования.");
+            return;
+        }
+
+
         if (text.equals("/stats") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
             try {
                 long totalUsers = userService.getAllUsers().size();
