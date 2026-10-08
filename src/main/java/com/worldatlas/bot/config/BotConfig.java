@@ -33,7 +33,8 @@ public class BotConfig {
                                        ReminderService reminderService, SupportService supportService,
                                        com.worldatlas.bot.service.TelegramRetryService retryService,
                                        com.worldatlas.bot.service.RateLimitService rateLimitService,
-                                       com.worldatlas.bot.service.ErrorNotifier errorNotifier) {
+                                       com.worldatlas.bot.service.ErrorNotifier errorNotifier,
+                                       com.worldatlas.bot.service.FeatureFlagService featureFlagService) {
         // Защита от запуска нескольких экземпляров бота
         synchronized (startLock) {
             if (botStarted) {
@@ -47,7 +48,7 @@ public class BotConfig {
             DefaultBotOptions options = new DefaultBotOptions();
             System.out.println("ℹ️ Работаем без прокси (прямое подключение)");
 
-            WorldAtlasBot bot = new WorldAtlasBot(options, userService, cityService, localization, timeService, customCityService, reminderService, supportService, retryService, rateLimitService, errorNotifier, botUsername, botToken);
+            WorldAtlasBot bot = new WorldAtlasBot(options, userService, cityService, localization, timeService, customCityService, reminderService, supportService, retryService, rateLimitService, errorNotifier, featureFlagService, botUsername, botToken);
             botInstance = bot;
 
             TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);

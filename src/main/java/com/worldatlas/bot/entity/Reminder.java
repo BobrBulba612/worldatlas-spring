@@ -23,5 +23,12 @@ public class Reminder {
     private String time;
     private String text;
     private String days;
+    @Column(name = "repeat_interval")
+    private Integer repeatInterval; // в часах, null = одноразовое
+
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    public Integer getRepeatInterval() { return repeatInterval; }
+    public void setRepeatInterval(Integer repeatInterval) { this.repeatInterval = repeatInterval; }
+
 }

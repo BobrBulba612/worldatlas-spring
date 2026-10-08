@@ -1032,4 +1032,25 @@ public class CityService {
         return mapping.get(country);
     }
 
+
+    /**
+     * Нечёткий поиск городов — ищет по частичному совпадению
+     */
+    public List<City> searchCitiesFuzzy(String query) {
+        if (query == null || query.length() < 2) return List.of();
+        String q = query.toLowerCase().trim();
+        
+        // Сначала точный поиск
+        List<City> exact = searchCities(query);
+        if (!exact.isEmpty()) return exact;
+        
+        // Затем нечёткий через LIKE
+        try {
+            return cityRepository.findByNameContainingIgnoreCaseOrCountryContainingIgnoreCase(q, q);
+        } catch (Exception e) {
+            log.warn("Fuzzy search failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
 }

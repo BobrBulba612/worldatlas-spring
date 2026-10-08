@@ -8,4 +8,7 @@ import java.util.List;
 @Repository
 public interface CityRepository extends JpaRepository<City, String> {
     List<City> findByNameContainingIgnoreCase(String name);
+
+    List<City> findByNameContainingIgnoreCaseOrCountryContainingIgnoreCase(String name, String country);
+
 }
