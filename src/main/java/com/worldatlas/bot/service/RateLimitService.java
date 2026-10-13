@@ -1,91 +1,87 @@
 package com.worldatlas.bot.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class RateLimitService {
-    private static final Logger log = LoggerFactory.getLogger(RateLimitService.class);
     
-    // Fallback in-memory rate limiting если Redis недоступен
-    private final ConcurrentHashMap<String, AtomicInteger> inMemoryCounters = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Long> inMemoryTimestamps = new ConcurrentHashMap<>();
+    // Rate limiting для конкретных команд
+    private final Map<String, Map<Long, AtomicInteger>> commandCounters = new ConcurrentHashMap<>();
+    private final Map<String, Map<Long, Long>> commandResetTimes = new ConcurrentHashMap<>();
     
-    @Autowired(required = false)
-    private StringRedisTemplate redisTemplate;
+    // Глобальный rate limiting
+    private final Map<Long, AtomicInteger> globalCounters = new ConcurrentHashMap<>();
+    private final Map<Long, Long> globalResetTimes = new ConcurrentHashMap<>();
+    private static final int GLOBAL_LIMIT = 30; // 30 команд в минуту
     
     /**
-     * Проверяет, может ли пользователь выполнить действие
-     * @param userId ID пользователя
-     * @param action Название действия (например, "support_message")
-     * @param maxRequests Максимум запросов за период
-     * @param windowSeconds Период в секундах
-     * @return true если можно выполнить действие
+     * Проверяет rate limit для конкретной команды
      */
-    public boolean isAllowed(Long userId, String action, int maxRequests, int windowSeconds) {
-        String key = "rate_limit:" + action + ":" + userId;
-        
-        try {
-            // Пробуем использовать Redis
-            if (redisTemplate != null) {
-                Long count = redisTemplate.opsForValue().increment(key);
-                if (count != null && count == 1) {
-                    redisTemplate.expire(key, Duration.ofSeconds(windowSeconds));
-                }
-                return count != null && count <= maxRequests;
-            }
-        } catch (Exception e) {
-            log.warn("Redis unavailable, falling back to in-memory rate limiting: {}", e.getMessage());
-        }
-        
-        // Fallback на in-memory rate limiting
-        return isAllowedInMemory(key, maxRequests, windowSeconds);
-    }
-    
-    private boolean isAllowedInMemory(String key, int maxRequests, int windowSeconds) {
+    public boolean checkRateLimit(String command, Long chatId, int limit) {
         long now = System.currentTimeMillis();
-        long windowMs = windowSeconds * 1000L;
         
-        Long lastTime = inMemoryTimestamps.get(key);
+        Map<Long, Long> resetTimes = commandResetTimes.computeIfAbsent(command, k -> new ConcurrentHashMap<>());
+        Map<Long, AtomicInteger> counters = commandCounters.computeIfAbsent(command, k -> new ConcurrentHashMap<>());
         
-        if (lastTime == null || (now - lastTime) > windowMs) {
-            // Сбрасываем счётчик
-            inMemoryTimestamps.put(key, now);
-            inMemoryCounters.put(key, new AtomicInteger(1));
-            return true;
+        Long resetTime = resetTimes.getOrDefault(chatId, now);
+        
+        if (now - resetTime > 60000) {
+            // Сбрасываем счётчик каждую минуту
+            counters.put(chatId, new AtomicInteger(0));
+            resetTimes.put(chatId, now);
         }
         
-        AtomicInteger counter = inMemoryCounters.computeIfAbsent(key, k -> new AtomicInteger(0));
-        int currentCount = counter.incrementAndGet();
+        AtomicInteger counter = counters.computeIfAbsent(chatId, k -> new AtomicInteger(0));
+        return counter.incrementAndGet() <= limit;
+    }
+    
+    /**
+     * Проверяет глобальный rate limit
+     */
+    public boolean checkGlobalRateLimit(Long chatId) {
+        long now = System.currentTimeMillis();
+        Long resetTime = globalResetTimes.getOrDefault(chatId, now);
         
-        return currentCount <= maxRequests;
+        if (now - resetTime > 60000) {
+            // Сбрасываем счётчик каждую минуту
+            globalCounters.put(chatId, new AtomicInteger(0));
+            globalResetTimes.put(chatId, now);
+        }
+        
+        AtomicInteger counter = globalCounters.computeIfAbsent(chatId, k -> new AtomicInteger(0));
+        return counter.incrementAndGet() <= GLOBAL_LIMIT;
     }
     
     /**
-     * Проверяет ограничение для обычных сообщений боту
+     * Возвращает оставшееся количество запросов для команды
      */
-    public boolean isUserMessageAllowed(Long userId) {
-        return isAllowed(userId, "user_message", 30, 60); // 30 сообщений в минуту
+    public int getRemaining(String command, Long chatId, int limit) {
+        Map<Long, AtomicInteger> counters = commandCounters.get(command);
+        if (counters == null) return limit;
+        
+        AtomicInteger counter = counters.get(chatId);
+        return counter != null ? Math.max(0, limit - counter.get()) : limit;
     }
     
     /**
-     * Проверяет ограничение для обращений в поддержку
+     * Возвращает оставшееся количество запросов глобально
      */
-    public boolean isSupportMessageAllowed(Long userId) {
-        return isAllowed(userId, "support_message", 1, 60); // 1 сообщение в минуту
+    public int getGlobalRemaining(Long chatId) {
+        AtomicInteger counter = globalCounters.get(chatId);
+        return counter != null ? Math.max(0, GLOBAL_LIMIT - counter.get()) : GLOBAL_LIMIT;
     }
     
     /**
-     * Проверяет ограничение для создания пользовательских городов
+     * Сбрасывает счётчик для команды
      */
-    public boolean isCustomCityAllowed(Long userId) {
-        return isAllowed(userId, "custom_city", 5, 60); // 5 городов в минуту
+    public void resetRateLimit(String command, Long chatId) {
+        Map<Long, AtomicInteger> counters = commandCounters.get(command);
+        if (counters != null) {
+            counters.put(chatId, new AtomicInteger(0));
+        }
     }
 }

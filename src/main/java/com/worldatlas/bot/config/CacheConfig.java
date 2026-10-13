@@ -15,17 +15,12 @@ public class CacheConfig {
     
     @Bean
     public CacheManager cacheManager() {
-        CaffeineCacheManager cacheManager = new CaffeineCacheManager(
-            "cities",           // Кеширование городов
-            "weather",          // Кеширование погоды
-            "users"             // Кеширование пользователей
-        );
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager();
         
         cacheManager.setCaffeine(Caffeine.newBuilder()
-            .maximumSize(10_000)
-            .expireAfterWrite(10, TimeUnit.MINUTES)
-            .recordStats()
-        );
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .maximumSize(1000)
+            .recordStats());
         
         return cacheManager;
     }

@@ -1333,6 +1333,50 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
         // ========== КОМАНДА /stats ==========
         // ========== КОМАНДА /weather ==========
+        // ========== ЭКСПОРТ/ИМПОРТ ИЗБРАННОГО ==========
+        if (text.equals("/export_favorites")) {
+            List<String> favorites = userService.getFavorites(chatId);
+            if (favorites.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ? "⭐ No favorites to export." : "⭐ Нет избранных городов для экспорта.");
+                return;
+            }
+            
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String json;
+            try {
+                json = mapper.writeValueAsString(favorites);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ Error exporting favorites.");
+                return;
+            }
+            
+            sendMsg(chatId, "📤 <b>" + ("en".equals(lang) ? "Your favorites:" : "Ваши избранные:") + "</b>\n\n<code>" + json + "</code>\n\n" + 
+                ("en".equals(lang) ? "Save this code to restore later with /import_favorites" : "Сохраните этот код для восстановления через /import_favorites"));
+            return;
+        }
+        
+        if (text.startsWith("/import_favorites ")) {
+            String json = text.substring(18).trim();
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                List<String> favorites = mapper.readValue(json, mapper.getTypeFactory().constructCollectionType(List.class, String.class));
+                
+                int count = 0;
+                for (String city : favorites) {
+                    if (cityService.findCity(city) != null) {
+                        userService.addFavorite(chatId, city);
+                        count++;
+                    }
+                }
+                
+                sendMsg(chatId, "✅ " + ("en".equals(lang) ? "Imported " + count + " cities" : "Импортировано " + count + " городов"));
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + ("en".equals(lang) ? "Invalid format" : "Неверный формат"));
+            }
+            return;
+        }
+
+
         if (text.startsWith("/weather ")) {
             String cityName = text.substring(9).trim();
             City city = cityService.findCity(cityName);
