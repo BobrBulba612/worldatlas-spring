@@ -1956,8 +1956,12 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             if (state.equals(STATE_WAITING_CITY)) {
                 userStates.remove(chatId);
                 City city = cityService.findCity(text);
-                if (city != null) sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
-                else sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
+                if (city != null) {
+                    sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
+                } else {
+                    sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
+                }
+                return; // ВАЖНО: прерываем выполнение, чтобы не дойти до общего обработчика
             } else if (state.equals(STATE_WAITING_REMOVE)) {
                 userStates.remove(chatId);
                 String cityToRemove = text.toLowerCase().trim();

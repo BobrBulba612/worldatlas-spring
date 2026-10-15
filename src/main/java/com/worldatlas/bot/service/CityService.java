@@ -856,7 +856,7 @@ public class CityService {
     }
       
 
-    @Cacheable(value = "cities", key = "#name.toLowerCase()")
+    // Убрали @Cacheable, чтобы не кешировать null и всегда пробовать онлайн-поиск при необходимости
     public City findCity(String name) {
         if (name == null) return null;
         String query = name.toLowerCase().trim();
