@@ -26,11 +26,14 @@ class CityServiceTest {
     @Mock
     private HolidayService holidayService;
     
+    @Mock
+    private GeoService geoService;
+    
     private CityService cityService;
     
     @BeforeEach
     void setUp() {
-        cityService = new CityService(cityRepository, weatherService, holidayService);
+        cityService = new CityService(cityRepository, weatherService, holidayService, geoService);
     }
     
     @Test

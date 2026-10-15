@@ -21,6 +21,7 @@ public class CityService {
     private final CityRepository cityRepository;
     private final WeatherService weatherService;
     private final HolidayService holidayService;
+    private final GeoService geoService;
 
     private static final Map<String, String> EN_TO_RU = Map.ofEntries(
         Map.entry("moscow", "москва"),
@@ -380,10 +381,11 @@ public class CityService {
         Map.entry("Антарктида", "Antarctica")
     );
 
-    public CityService(CityRepository cityRepository, WeatherService weatherService, HolidayService holidayService) {
+    public CityService(CityRepository cityRepository, WeatherService weatherService, HolidayService holidayService, GeoService geoService) {
         this.cityRepository = cityRepository;
         this.weatherService = weatherService;
         this.holidayService = holidayService;
+        this.geoService = geoService;
     }
       @PostConstruct
     public void initializeDefaultCities() {
@@ -860,7 +862,24 @@ public class CityService {
         String query = name.toLowerCase().trim();
         String ruName = EN_TO_RU.get(query);
         if (ruName != null) query = ruName;
-        return cityRepository.findById(query).orElse(null);
+        
+        // Сначала ищем в локальной БД
+        City city = cityRepository.findById(query).orElse(null);
+        if (city != null) return city;
+        
+        // Если не нашли — ищем онлайн через Geo API
+        try {
+            List<City> onlineResults = geoService.searchCitiesOnline(name);
+            if (!onlineResults.isEmpty()) {
+                City found = onlineResults.get(0);
+                // Сохраняем в БД для будущего использования
+                return geoService.saveCityIfNotExists(found);
+            }
+        } catch (Exception e) {
+            // Игнорируем ошибки онлайн-поиска
+        }
+        
+        return null;
     }
 
     @Cacheable(value = "cities", key = "#query.toLowerCase()")
@@ -893,7 +912,65 @@ public class CityService {
         return getCityInfo(city, lang, "24");
     }
     
-    public String getCityInfoWithWeather(City city, String lang, String timeFormat, com.worldatlas.bot.entity.User user) {
+    
+    /**
+     * Возвращает ТОЛЬКО информацию о погоде (без времени, страны и т.д.)
+     */
+    public String getWeatherOnly(City city, String lang) {
+        StringBuilder sb = new StringBuilder();
+        String displayName = getCityNameLocalized(city, lang);
+        sb.append("🌤️ <b>").append("en".equals(lang) ? "Weather in" : "Погода в").append(" ").append(displayName).append("</b>\n\n");
+        
+        Map<String, Object> weather = weatherService.getWeather(city.getName());
+        if (weather == null) {
+            sb.append("en".equals(lang) ? "⚠️ Weather data unavailable" : "⚠️ Данные о погоде недоступны");
+            return sb.toString();
+        }
+        
+        String desc = (String) weather.get("description");
+        String emoji = weatherService.getWeatherEmoji(desc);
+        Double temp = (Double) weather.get("temp");
+        Double feelsLike = (Double) weather.get("feelsLike");
+        Integer humidity = (Integer) weather.get("humidity");
+        Double windSpeed = (Double) weather.get("windSpeed");
+        Integer pressure = (Integer) weather.get("pressure");
+        Integer sunrise = (Integer) weather.get("sunrise");
+        Integer sunset = (Integer) weather.get("sunset");
+        
+        if ("en".equals(lang)) {
+            sb.append(emoji).append(" <b>").append(desc != null ? desc.substring(0, 1).toUpperCase() + desc.substring(1) : "N/A").append("</b>\n\n");
+            sb.append("🌡️ Temperature: <b>").append(String.format("%.1f°C", temp)).append("</b>\n");
+            sb.append("🤔 Feels like: <b>").append(String.format("%.1f°C", feelsLike)).append("</b>\n");
+            sb.append("💧 Humidity: <b>").append(humidity != null ? humidity + "%" : "N/A").append("</b>\n");
+            sb.append("💨 Wind: <b>").append(windSpeed != null ? String.format("%.1f m/s", windSpeed) : "N/A").append("</b>\n");
+            if (pressure != null) sb.append("🌡️ Pressure: <b>").append(pressure).append(" hPa</b>\n");
+        } else {
+            sb.append(emoji).append(" <b>").append(desc != null ? desc.substring(0, 1).toUpperCase() + desc.substring(1) : "N/A").append("</b>\n\n");
+            sb.append("🌡️ Температура: <b>").append(String.format("%.1f°C", temp)).append("</b>\n");
+            sb.append("🤔 Ощущается как: <b>").append(String.format("%.1f°C", feelsLike)).append("</b>\n");
+            sb.append("💧 Влажность: <b>").append(humidity != null ? humidity + "%" : "N/A").append("</b>\n");
+            sb.append("💨 Ветер: <b>").append(windSpeed != null ? String.format("%.1f м/с", windSpeed) : "N/A").append("</b>\n");
+            if (pressure != null) sb.append("🌡️ Давление: <b>").append(pressure).append(" гПа</b>\n");
+        }
+        
+        // Восход/закат
+        if (sunrise != null && sunset != null) {
+            java.time.Instant sunriseInstant = java.time.Instant.ofEpochSecond(sunrise);
+            java.time.Instant sunsetInstant = java.time.Instant.ofEpochSecond(sunset);
+            java.time.ZoneId zone = java.time.ZoneId.of(city.getTimezone());
+            String sunriseTime = java.time.ZonedDateTime.ofInstant(sunriseInstant, zone)
+                .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+            String sunsetTime = java.time.ZonedDateTime.ofInstant(sunsetInstant, zone)
+                .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+            
+            sb.append("\n🌅 ").append("en".equals(lang) ? "Sunrise: " : "Восход: ").append("<b>").append(sunriseTime).append("</b>\n");
+            sb.append("🌇 ").append("en".equals(lang) ? "Sunset: " : "Закат: ").append("<b>").append(sunsetTime).append("</b>");
+        }
+        
+        return sb.toString();
+    }
+
+public String getCityInfoWithWeather(City city, String lang, String timeFormat, com.worldatlas.bot.entity.User user) {
         String baseInfo = getCityInfo(city, lang, timeFormat);
         
         boolean showWeather = user != null && user.getShowWeather() != null && user.getShowWeather();

@@ -1335,6 +1335,11 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         // ========== КОМАНДА /weather ==========
         // ========== ЭКСПОРТ/ИМПОРТ ИЗБРАННОГО ==========
         if (text.equals("/export_favorites")) {
+            String currentUsername = user != null ? user.getUsername() : null;
+            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
+                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta." : "🧪 Эта команда в бета-тестировании.");
+                return;
+            }
             List<String> favorites = userService.getFavorites(chatId);
             if (favorites.isEmpty()) {
                 sendMsg(chatId, "en".equals(lang) ? "⭐ No favorites to export." : "⭐ Нет избранных городов для экспорта.");
@@ -1378,14 +1383,19 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
 
         if (text.startsWith("/weather ")) {
+            String currentUsername = user != null ? user.getUsername() : null;
+            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
+                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta. Use /join_beta to access it." : "🧪 Эта команда в бета-тестировании. Используйте /join_beta для доступа.");
+                return;
+            }
             String cityName = text.substring(9).trim();
             City city = cityService.findCity(cityName);
             if (city == null) {
-                List<City> found = cityService.searchCities(cityName);
+                List<City> found = cityService.searchCitiesFuzzy(cityName);
                 if (!found.isEmpty()) city = found.get(0);
             }
             if (city != null) {
-                sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
+                sendMsg(chatId, cityService.getWeatherOnly(city, lang));
             } else {
                 sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
             }
@@ -1394,6 +1404,11 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
         // ========== КОМАНДА /compare ==========
         if (text.startsWith("/compare ")) {
+            String currentUsername = user != null ? user.getUsername() : null;
+            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
+                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta. Use /join_beta to access it." : "🧪 Эта команда в бета-тестировании. Используйте /join_beta для доступа.");
+                return;
+            }
             String[] parts = text.substring(9).trim().split("\\s+");
             if (parts.length < 2) {
                 sendMsg(chatId, "en".equals(lang) ? "Usage: /compare City1 City2" : "Использование: /compare Город1 Город2");
