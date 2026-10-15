@@ -2003,7 +2003,32 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
         City city = cityService.findCity(text);
         if (city != null) {
-            sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
+            String baseMessage = cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user);
+            
+            // === СУПЕРСИЛА ДОМАШНЕГО ГОРОДА ===
+            String homeCityName = user.getHomeCity();
+            if (homeCityName != null && !homeCityName.equalsIgnoreCase(city.getName())) {
+                City homeCity = cityService.findCity(homeCityName);
+                if (homeCity != null) {
+                    String homeDisplayName = cityService.getCityNameLocalized(homeCity, lang);
+                    String cityDisplayName = cityService.getCityNameLocalized(city, lang);
+                    
+                    // Вычисляем разницу во времени
+                    java.time.ZonedDateTime nowCity = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
+                    java.time.ZonedDateTime nowHome = java.time.ZonedDateTime.now(java.time.ZoneId.of(homeCity.getTimezone()));
+                    long diffHours = java.time.Duration.between(nowHome, nowCity).toHours();
+                    String diffStr = diffHours == 0 ? "время совпадает" : 
+                                     (diffHours > 0 ? "+" + diffHours + " ч." : diffHours + " ч.");
+                    
+                    String homeBlock = "\n━━━━━━━━━━━━━━━━\n" +
+                        "🏠 <b>Относительно дома (" + homeDisplayName + ")</b>\n" +
+                        "⏰ Разница: <b>" + diffStr + "</b>";
+                    
+                    baseMessage += homeBlock;
+                }
+            }
+            
+            sendMsg(chatId, baseMessage, getCityActionsKeyboard(city.getName(), lang));
         } else {
             sendMsg(chatId, "en".equals(lang) ? "❓ Unknown command or city not found. Use /help" : "❓ Неизвестная команда или город не найден. Используйте /help");
         }
