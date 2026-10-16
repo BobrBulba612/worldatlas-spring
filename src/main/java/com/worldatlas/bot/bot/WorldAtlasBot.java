@@ -49,6 +49,7 @@ import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScope
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeAllPrivateChats;
 import com.worldatlas.bot.service.TelegramRetryService;
 import com.worldatlas.bot.service.RateLimitService;
+import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 public class WorldAtlasBot extends TelegramLongPollingBot {
@@ -84,7 +85,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private static final String STATE_WAITING_CUSTOM_CITY_NAME = "WAITING_CUSTOM_CITY_NAME";
     private static final String STATE_WAITING_CUSTOM_CITY_TIMEZONE = "WAITING_CUSTOM_CITY_TIMEZONE";
     private static final String STATE_WAITING_DELETE_CUSTOM_CITY = "WAITING_DELETE_CUSTOM_CITY";
-    private static final String OWNER_SECRET_KEY = "REMOVED_OWNER_SECRET";
+    @Value("${app.owner.secret:REMOVED_OWNER_SECRET}")
+    private String ownerSecretKey;
 
     public WorldAtlasBot(DefaultBotOptions options, UserService userService, CityService cityService, LocalizationService localization, TimeService timeService, CustomCityService customCityService, ReminderService reminderService, SupportService supportService, TelegramRetryService retryService, RateLimitService rateLimitService, com.worldatlas.bot.service.ErrorNotifier errorNotifier, com.worldatlas.bot.service.FeatureFlagService featureFlagService, String botUsername, String botToken) {
         super(options, botToken);
@@ -735,7 +737,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     adminHelp.append("• /demoteowner @username - Demote owner to admin\n");
                     adminHelp.append("• /iamadmin - Secret command for bot creator\n\n");
                     adminHelp.append("🔐 <b>Secret key for /makeowner:</b>\n");
-                    adminHelp.append("`" + OWNER_SECRET_KEY + "`");
+                    adminHelp.append("`" + ownerSecretKey + "`");
                 }
             } else {
                 adminHelp.append("👤 <b>Базовые команды (весь персонал):</b>\n");
@@ -759,7 +761,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                     adminHelp.append("• /demoteowner @username - Понизить владельца до админа\n");
                     adminHelp.append("• /iamadmin - Секретная команда создателя бота\n\n");
                     adminHelp.append("🔐 <b>Секретный ключ для /makeowner:</b>\n");
-                    adminHelp.append("`" + OWNER_SECRET_KEY + "`");
+                    adminHelp.append("`" + ownerSecretKey + "`");
                 }
             }
             try {
@@ -837,7 +839,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 return;
             }
             String[] parts = text.split(" ", 3);
-            if (parts.length < 3 || !parts[2].equals(OWNER_SECRET_KEY)) {
+            if (parts.length < 3 || !parts[2].equals(ownerSecretKey)) {
                 sendMsg(chatId, "❌ Неверный секретный ключ");
                 notifyAdmin("🚨 НЕВЕРНЫЙ КЛЮЧ OWNER\nBy: @" + user.getUsername());
                 return;
