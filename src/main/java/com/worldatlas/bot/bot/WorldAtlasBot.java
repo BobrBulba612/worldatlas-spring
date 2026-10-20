@@ -274,37 +274,54 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
 
-        // 4. DONATE (с поддержкой аргументов и безопасным fallback)
+        // 4. DONATE (прямой HTTP-запрос к Telegram API через Map, без проблем с экранированием)
         if (text.startsWith("/donate") || text.equals("⭐ Поддержать")) {
+            int amount = 5;
+            String[] parts = text.trim().split("\\s+");
+            if (parts.length > 1) {
+                try {
+                    int customAmount = Integer.parseInt(parts[1]);
+                    if (customAmount >= 1 && customAmount <= 1000) {
+                        amount = customAmount;
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+            
             try {
-                org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice invoice = new org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice();
-                invoice.setChatId(String.valueOf(chatId));
-                invoice.setTitle("en".equals(lang) ? "Support WorldAtlas Bot ☕" : "Поддержать WorldAtlas Bot ☕");
-                invoice.setDescription("en".equals(lang) ? "Help keep the bot running!" : "Помогите боту работать стабильно!");
-                invoice.setPayload("donate_" + chatId + "_" + System.currentTimeMillis());
-                invoice.setCurrency("XTR");
-                invoice.setProviderToken(""); // Для Telegram Stars должен быть пустым
+                java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                payload.put("chat_id", chatId);
+                payload.put("title", "en".equals(lang) ? "Support WorldAtlas Bot ☕" : "Поддержать WorldAtlas Bot ☕");
+                payload.put("description", "en".equals(lang) ? "Help keep the bot running!" : "Помогите боту работать стабильно!");
+                payload.put("payload", "donate_" + chatId + "_" + System.currentTimeMillis());
+                payload.put("currency", "XTR");
+                payload.put("provider_token", "");
                 
-                // Сумма по умолчанию: 5 звезд. Если ввели /donate 10, берем 10.
-                int amount = 5;
-                String[] parts = text.trim().split("\\s+");
-                if (parts.length > 1) {
-                    try {
-                        int customAmount = Integer.parseInt(parts[1]);
-                        if (customAmount >= 1 && customAmount <= 1000) {
-                            amount = customAmount;
-                        }
-                    } catch (NumberFormatException ignored) {}
+                java.util.List<java.util.Map<String, Object>> prices = new java.util.ArrayList<>();
+                java.util.Map<String, Object> priceItem = new java.util.HashMap<>();
+                priceItem.put("label", "Donation");
+                priceItem.put("amount", amount);
+                prices.add(priceItem);
+                payload.put("prices", prices);
+                
+                String sendInvoiceUrl = "https://api.telegram.org/bot" + botToken + "/sendInvoice";
+                
+                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+                headers.set("Content-Type", "application/json");
+                org.springframework.http.HttpEntity<java.util.Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(payload, headers);
+                
+                org.springframework.web.client.RestTemplate rt = new org.springframework.web.client.RestTemplate();
+                org.springframework.http.ResponseEntity<String> response = rt.postForEntity(sendInvoiceUrl, entity, String.class);
+                
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    log.info("✅ Invoice sent successfully for chat {}", chatId);
+                } else {
+                    throw new RuntimeException("API returned: " + response.getStatusCode());
                 }
-                
-                org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice price = new org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice("Donation", amount);
-                invoice.setPrices(java.util.List.of(price));
-                execute(invoice);
             } catch (Exception e) {
-                // Если Telegram API ругается на пустой ProviderToken (особенность библиотеки), показываем красивое сообщение
+                log.error("Donate error: {}", e.getMessage());
                 String fallbackMsg = "en".equals(lang) ?
-                    "💳 <b>Support the project!</b>\n\nTelegram Stars payments require additional provider setup in @BotFather.\n\nFor now, the best donation is a ⭐⭐⭐⭐⭐ rating and sharing the bot with friends!" :
-                    "💳 <b>Поддержать проект!</b>\n\nОплата через Telegram Stars требует дополнительной настройки провайдера в @BotFather.\n\nА пока лучшая поддержка — это оценка бота на 5 ⭐ и рекомендация друзьям!";
+                    "💳 <b>Support the project!</b>\n\nSomething went wrong. Please try again later or share the bot with friends!" :
+                    "💳 <b>Поддержать проект!</b>\n\nЧто-то пошло не так. Попробуйте позже или просто расскажите о боте друзьям!";
                 sendMsg(chatId, fallbackMsg);
             }
             return;
