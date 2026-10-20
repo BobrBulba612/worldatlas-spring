@@ -2349,26 +2349,37 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         } else if (data.equals("settings_back_to_main")) {
             User updatedUser = userService.getUser(chatId);
             showSettings(chatId, updatedUser.getLanguage(), updatedUser);
-        } else if (data.equals("settings_weather")) {
-            User updatedUser = userService.getUser(chatId);
-            Boolean current = updatedUser.getShowWeather();
-            updatedUser.setShowWeather(current == null || !current);
-            userService.saveUser(updatedUser);
+        } else if (data.equals("settings_card")) {
+            showCardSettings(chatId, messageId, lang, user);
+        } else if (data.equals("toggle_home_compare")) {
+            boolean current = user.isShowHomeComparison();
+            userService.setShowHomeComparison(chatId, !current);
+            User updated = userService.getUser(chatId);
             String msg = "en".equals(lang) ?
-                "✅ Weather display: " + (updatedUser.getShowWeather() ? "enabled" : "disabled") :
-                "✅ Отображение погоды: " + (updatedUser.getShowWeather() ? "включено" : "выключено");
+                "✅ Home city compare: " + (!current ? "ON" : "OFF") :
+                "✅ Сравнение с домом: " + (!current ? "ВКЛ" : "ВЫКЛ");
             editMessageText(chatId, messageId, msg);
-            showSettings(chatId, lang, updatedUser);
-        } else if (data.equals("settings_sunrise")) {
-            User updatedUser = userService.getUser(chatId);
-            Boolean current = updatedUser.getShowSunriseSunset();
-            updatedUser.setShowSunriseSunset(current == null || !current);
-            userService.saveUser(updatedUser);
+            showCardSettings(chatId, messageId, lang, updated);
+        } else if (data.equals("toggle_weather")) {
+            Boolean current = user.getShowWeather();
+            user.setShowWeather(current == null || !current);
+            userService.saveUser(user);
             String msg = "en".equals(lang) ?
-                "✅ Sunrise/Sunset display: " + (updatedUser.getShowSunriseSunset() ? "enabled" : "disabled") :
-                "✅ Отображение восхода/заката: " + (updatedUser.getShowSunriseSunset() ? "включено" : "выключено");
+                "✅ Weather: " + (user.getShowWeather() ? "ON" : "OFF") :
+                "✅ Погода: " + (user.getShowWeather() ? "ВКЛ" : "ВЫКЛ");
             editMessageText(chatId, messageId, msg);
-            showSettings(chatId, lang, updatedUser);
+            showCardSettings(chatId, messageId, lang, user);
+        } else if (data.equals("toggle_sunrise")) {
+            Boolean current = user.getShowSunriseSunset();
+            user.setShowSunriseSunset(current == null || !current);
+            userService.saveUser(user);
+            String msg = "en".equals(lang) ?
+                "✅ Sunrise/Sunset: " + (user.getShowSunriseSunset() ? "ON" : "OFF") :
+                "✅ Восход/Закат: " + (user.getShowSunriseSunset() ? "ВКЛ" : "ВЫКЛ");
+            editMessageText(chatId, messageId, msg);
+            showCardSettings(chatId, messageId, lang, user);
+        } else if (data.equals("settings_card_back")) {
+            showSettings(chatId, lang, user);
         } else if (data.equals("settings_back")) {
             User updatedUser = userService.getUser(chatId);
             showSettings(chatId, updatedUser.getLanguage(), updatedUser);
@@ -2513,19 +2524,9 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         row2.add(createInlineButton("🕐 " + ("en".equals(lang) ? "Time format" : "Формат времени"), "settings_timeformat"));
         rows.add(row2);
 
-        List<InlineKeyboardButton> row2c = new ArrayList<>();
-        String weatherStatus = user.getShowWeather() != null && user.getShowWeather() ? "✅" : "❌";
-        row2c.add(createInlineButton("🌤️ " + ("en".equals(lang) ? "Weather" : "Погода") + " " + weatherStatus, "settings_weather"));
-        rows.add(row2c);
-
-        List<InlineKeyboardButton> row2d = new ArrayList<>();
-        String sunriseStatus = user.getShowSunriseSunset() != null && user.getShowSunriseSunset() ? "✅" : "❌";
-        row2d.add(createInlineButton("🌅 " + ("en".equals(lang) ? "Sunrise/Sunset" : "Восход/Закат") + " " + sunriseStatus, "settings_sunrise"));
-        rows.add(row2d);
-        
-        List<InlineKeyboardButton> row2b = new ArrayList<>();
-        row2b.add(createInlineButton("🏠 " + ("en".equals(lang) ? "Home city" : "Домашний город"), "settings_home"));
-        rows.add(row2b);
+        List<InlineKeyboardButton> rowCard = new ArrayList<>();
+        rowCard.add(createInlineButton("🎨 " + ("en".equals(lang) ? "Card Settings" : "Настройки карточки"), "settings_card"));
+        rows.add(rowCard);
         
         List<InlineKeyboardButton> row3 = new ArrayList<>();
         row3.add(createInlineButton("🔙 " + ("en".equals(lang) ? "Back" : "Назад"), "settings_back"));
@@ -2533,6 +2534,39 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         
         markup.setKeyboard(rows);
         sendMsg(chatId, text, markup);
+    }
+
+
+    private void showCardSettings(long chatId, int messageId, String lang, User user) {
+        String homeStatus = user.isShowHomeComparison() ? "✅" : "❌";
+        String weatherStatus = (user.getShowWeather() != null && user.getShowWeather()) ? "✅" : "❌";
+        String sunriseStatus = (user.getShowSunriseSunset() != null && user.getShowSunriseSunset()) ? "✅" : "❌";
+
+        String text = "en".equals(lang) ?
+            "🎨 <b>Card Settings</b>\n\nToggle what you want to see in the city card:" :
+            "🎨 <b>Настройки карточки</b>\n\nВыберите, что отображать в карточке города:";
+        
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        
+        List<InlineKeyboardButton> row1 = new ArrayList<>();
+        row1.add(createInlineButton("🏠 " + ("en".equals(lang) ? "Home City Compare" : "Сравнение с домом") + " " + homeStatus, "toggle_home_compare"));
+        rows.add(row1);
+
+        List<InlineKeyboardButton> row2 = new ArrayList<>();
+        row2.add(createInlineButton("🌤️ " + ("en".equals(lang) ? "Weather" : "Погода") + " " + weatherStatus, "toggle_weather"));
+        rows.add(row2);
+
+        List<InlineKeyboardButton> row3 = new ArrayList<>();
+        row3.add(createInlineButton("🌅 " + ("en".equals(lang) ? "Sunrise/Sunset" : "Восход/Закат") + " " + sunriseStatus, "toggle_sunrise"));
+        rows.add(row3);
+        
+        List<InlineKeyboardButton> row4 = new ArrayList<>();
+        row4.add(createInlineButton("🔙 " + ("en".equals(lang) ? "Back" : "Назад"), "settings_card_back"));
+        rows.add(row4);
+        
+        markup.setKeyboard(rows);
+        editMessageText(chatId, messageId, text, markup);
     }
 
     private void sendWelcome(long chatId, String lang) {
