@@ -1,7 +1,6 @@
 package com.worldatlas.bot.bot;
 
 import org.slf4j.Logger;
-import io.sentry.Sentry;
 import org.slf4j.LoggerFactory;
 
 import lombok.extern.slf4j.Slf4j;
@@ -51,9 +50,6 @@ import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScope
 import com.worldatlas.bot.service.TelegramRetryService;
 import com.worldatlas.bot.service.RateLimitService;
 import org.springframework.beans.factory.annotation.Value;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class WorldAtlasBot extends TelegramLongPollingBot {
@@ -72,10 +68,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private final String botUsername;
     private final String botToken;
     
-    private final Cache<Long, String> userStates = Caffeine.newBuilder()
-        .expireAfterWrite(10, TimeUnit.MINUTES)
-        .maximumSize(100_000)
-        .build();
+    private final Map<Long, String> userStates = new ConcurrentHashMap<>();
     private int lastUpdateId = 0;
     private static final String STATE_WAITING_CITY = "WAITING_CITY";
     private static final String STATE_WAITING_REMOVE = "WAITING_REMOVE";
@@ -206,6 +199,104 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         
         String lang = user.getLanguage();
 
+        // ==========================================
+        // НОВЫЕ КОМАНДЫ (Приоритетная обработка)
+        // ==========================================
+        
+        // 1. ТЕСТ SENTRY
+        if (text.equals("/test_sentry") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                io.sentry.Sentry.captureMessage("🧪 Test Sentry event from chatId: " + chatId);
+                sendMsg(chatId, "✅ Тестовое событие отправлено в Sentry!");
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
+            }
+            return;
+        }
+
+        // 2. ABOUT / INFO
+        if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
+            String aboutText = "en".equals(lang) ?
+                "🤖 <b>About WorldAtlas Bot</b>\n\n" +
+                "👨‍💻 <b>Creator:</b> @BobrArbuz\n\n" +
+                "🌐 <b>Data Sources:</b>\n" +
+                "• 🌤️ Weather & Geocoding: OpenWeatherMap API\n" +
+                "• 🕐 Timezones: TimeAPI.io / Java Timezone DB\n" +
+                "• 💬 Interface: Telegram Bot API\n\n" +
+                "⚙️ <b>Tech Stack:</b>\n" +
+                "• Java 21 + Spring Boot\n" +
+                "• PostgreSQL (Neon)\n" +
+                "• Caffeine Cache\n" +
+                "• Sentry (error monitoring)\n" +
+                "• Hosting: Render\n\n" +
+                "💡 Questions? Use /support!" :
+                "🤖 <b>О боте WorldAtlas</b>\n\n" +
+                "👨‍💻 <b>Создатель:</b> @BobrArbuz\n\n" +
+                "🌐 <b>Источники данных:</b>\n" +
+                "• 🌤️ Погода и поиск: OpenWeatherMap API\n" +
+                "• 🕐 Часовые пояса: TimeAPI.io / Java Timezone DB\n" +
+                "• 💬 Интерфейс: Telegram Bot API\n\n" +
+                "⚙️ <b>Технологии:</b>\n" +
+                "• Java 21 + Spring Boot\n" +
+                "• PostgreSQL (Neon)\n" +
+                "• Caffeine Cache\n" +
+                "• Sentry (мониторинг ошибок)\n" +
+                "• Хостинг: Render\n\n" +
+                "💡 Вопросы? Пишите /support!";
+            sendMsg(chatId, aboutText);
+            return;
+        }
+
+        // 3. MEETING
+        if (text.startsWith("/meeting ")) {
+            String[] cities = text.substring(9).split(",| ");
+            StringBuilder sb = new StringBuilder();
+            sb.append("🤝 <b>").append("en".equals(lang) ? "Meeting Planner" : "Планировщик встреч").append("</b>\n\n");
+            int count = 0;
+            for (String cityName : cities) {
+                if (cityName.trim().isEmpty()) continue;
+                if (count >= 5) break;
+                com.worldatlas.bot.entity.City city = cityService.findCity(cityName.trim());
+                if (city != null) {
+                    java.time.ZonedDateTime now = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
+                    String timeStr = now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                    String displayName = cityService.getCityNameLocalized(city, lang);
+                    sb.append("• <b>").append(displayName).append("</b>: ").append(timeStr).append("\n");
+                    count++;
+                }
+            }
+            if (count == 0) {
+                sb.append("en".equals(lang) ? "❌ Cities not found." : "❌ Города не найдены.");
+            } else {
+                sb.append("\n💡 <i>Разделяйте города пробелами или запятыми</i>");
+            }
+            sendMsg(chatId, sb.toString());
+            return;
+        }
+
+        // 4. DONATE
+        if (text.equals("/donate") || text.equals("⭐ Поддержать")) {
+            try {
+                org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice invoice = new org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice();
+                invoice.setChatId(String.valueOf(chatId));
+                invoice.setTitle("en".equals(lang) ? "Support WorldAtlas Bot ☕" : "Поддержать WorldAtlas Bot ☕");
+                invoice.setDescription("en".equals(lang) ? "Help keep the bot running!" : "Помогите боту работать стабильно!");
+                invoice.setPayload("donate_" + chatId + "_" + System.currentTimeMillis());
+                invoice.setCurrency("XTR");
+                invoice.setProviderToken("");
+                org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice price = new org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice("Donation", 50);
+                invoice.setPrices(java.util.List.of(price));
+                execute(invoice);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ Ошибка создания платежа: " + e.getMessage());
+            }
+            return;
+        }
+        // ==========================================
+        // КОНЕЦ НОВЫХ КОМАНД
+        // ==========================================
+
+
         // Обработка команды /reply для админа
         if (text.startsWith("/reply ") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
             String rest = text.substring(7).trim();
@@ -314,964 +405,6 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             System.out.println("⚠️ Ошибка проверки подписки: " + e.getMessage());
         }
 
-        // ========== КОМАНДА /about ==========
-        
-        // ========== ТЕСТ SENTRY ==========
-        if (text.equals("/test_sentry") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
-            try {
-                Sentry.captureMessage("🧪 Test Sentry event from chatId: " + chatId);
-                sendMsg(chatId, "✅ Тестовое событие отправлено в Sentry!\n\nПроверь панель Sentry — событие должно появиться в течение 30 секунд.");
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
-            }
-            return;
-        }
-        if (text.equals("/search_city") || text.equals("🔍 Поиск") || text.equals("🔍 Search")) {
-            userStates.put(chatId, STATE_WAITING_CITY);
-            sendMsg(chatId, "en".equals(lang) ? "🔍 Enter city name:" : "🔍 Введите название города:");
-            return;
-        }
-                if (text.equals("/view_favorites") || text.equals("⭐ Избранное") || text.equals("⭐ Favorites")) {
-            try {
-                List<String> favs = userService.getFavorites(chatId);
-                List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
-                
-                if ((favs == null || favs.isEmpty()) && (customCities == null || customCities.isEmpty())) {
-                    sendMsg(chatId, "en".equals(lang) ? "⭐ Your favorites list is empty.\n\nUse /search_city to find cities and add them!" : "⭐ Ваш список избранных городов пуст.\n\nИспользуйте /search_city чтобы найти города и добавить их!");
-                } else {
-                    StringBuilder sb = new StringBuilder();
-                    
-                    if (favs != null && !favs.isEmpty()) {
-                        sb.append("en".equals(lang) ? "⭐ <b>Your Favorites:</b>\n\n" : "⭐ <b>Ваше избранное:</b>\n\n");
-                        for (String cityName : favs) {
-                            City city = cityService.findCity(cityName);
-                            if (city != null) {
-                                String displayName = cityService.getCityNameLocalized(city, lang);
-                                String countryName = cityService.getCountryLocalized(city, lang);
-                                java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
-                                String timeFormat = user.getTimeFormat();
-                                String timeStr = "12".equals(timeFormat) ? 
-                                    cityTime.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a")) :
-                                    cityTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
-                                int offsetSeconds = cityTime.getOffset().getTotalSeconds();
-                                int offsetHours = offsetSeconds / 3600;
-                                String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
-                                sb.append("🌍 <b>").append(displayName).append("</b>\n")
-                                  .append("   📍 ").append(countryName).append("\n")
-                                  .append("   🕐 ").append(timeStr).append(" | 🌐 ").append(utcStr).append("\n\n");
-                            }
-                        }
-                    }
-                    
-                    if (customCities != null && !customCities.isEmpty()) {
-                        sb.append("🏙️ <b>").append("en".equals(lang) ? "Custom Cities:" : "Пользовательские города:").append("</b>\n\n");
-                        for (CustomCity cc : customCities) {
-                            ZonedDateTime now = customCityService.getTimeForCustomCity(cc);
-                            String timeFormat = user.getTimeFormat();
-                            String timeStr = "12".equals(timeFormat) ? 
-                                now.format(DateTimeFormatter.ofPattern("hh:mm a")) :
-                                now.format(DateTimeFormatter.ofPattern("HH:mm"));
-                            String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
-                            sb.append("🏙️ <b>").append(displayName).append("</b>\n")
-                              .append("   🌐 UTC").append(cc.getTimezone()).append("\n")
-                              .append("   🕐 ").append(timeStr).append("\n\n");
-                        }
-                    }
-                    
-                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                    InlineKeyboardButton removeBtn = new InlineKeyboardButton();
-                    removeBtn.setText("en".equals(lang) ? "🗑️ Remove city" : "🗑️ Удалить город");
-                    removeBtn.setCallbackData("remove_fav:start");
-                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                    List<InlineKeyboardButton> row = new ArrayList<>();
-                    row.add(removeBtn);
-                    rows.add(row);
-                    markup.setKeyboard(rows);
-                    
-                    sendMsg(chatId, sb.toString(), markup);
-                }
-            } catch (Exception e) {
-                log.error("Favorites error: {}", e.getMessage(), e);
-                sendMsg(chatId, "❌ Error loading favorites: " + e.getMessage());
-            }
-            return;
-        }
-                if (text.equals("/create_custom")) {
-            userStates.put(chatId, STATE_WAITING_CUSTOM_CITY_NAME);
-            sendMsg(chatId, "en".equals(lang) ? 
-                "🏙️ Enter the name of your custom city:" :
-                "🏙️ Введите название вашего пользовательского города:");
-            return;
-        }
-
-        if (text.equals("/list_custom")) {
-            List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
-            if (customCities.isEmpty()) {
-                sendMsg(chatId, "en".equals(lang) ? 
-                    "🏙️ You have no custom cities." :
-                    "🏙️ У вас нет пользовательских городов.");
-            } else {
-                StringBuilder sb = new StringBuilder();
-                sb.append("en".equals(lang) ? "🏙️ <b>Your Custom Cities:</b>\n\n" : "🏙️ <b>Ваши пользовательские города:</b>\n\n");
-                for (CustomCity cc : customCities) {
-                    ZonedDateTime now = customCityService.getTimeForCustomCity(cc);
-                    String timeStr = now.format(DateTimeFormatter.ofPattern("HH:mm"));
-                    String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
-                    sb.append("🏙️ <b>").append(displayName).append("</b>\n")
-                      .append("   🌐 UTC").append(cc.getTimezone()).append("\n")
-                      .append("   🕐 ").append(timeStr).append("\n\n");
-                }
-                sendMsg(chatId, sb.toString());
-            }
-            return;
-        }
-
-        if (text.startsWith("/change_UTC_custom ")) {
-            String cityName = text.substring("/change_UTC_custom ".length()).toLowerCase().trim();
-            CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
-            if (customCity != null) {
-                userStates.put(chatId, STATE_WAITING_CHANGE_UTC_CUSTOM + ":" + cityName);
-                sendMsg(chatId, "en".equals(lang) ?
-                    "🕐 Enter new timezone in format +07 or -11:" :
-                    "🕐 Введите новый часовой пояс в формате +07 или -11:");
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Custom city not found." :
-                    "❌ Пользовательский город не найден.");
-            }
-            return;
-        }
-
-        if (text.startsWith("/change_name_custom ")) {
-            String cityName = text.substring("/change_name_custom ".length()).toLowerCase().trim();
-            CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
-            if (customCity != null) {
-                userStates.put(chatId, STATE_WAITING_CHANGE_NAME_CUSTOM + ":" + cityName);
-                sendMsg(chatId, "en".equals(lang) ?
-                    "✏️ Enter new city name:" :
-                    "✏️ Введите новое название города:");
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Custom city not found." :
-                    "❌ Пользовательский город не найден.");
-            }
-            return;
-        }
-
-        if (text.equals("/delete_custom")) {
-            List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
-            if (customCities.isEmpty()) {
-                sendMsg(chatId, "en".equals(lang) ? 
-                    "🏙️ You have no custom cities to delete." :
-                    "🏙️ У вас нет пользовательских городов для удаления.");
-                return;
-            }
-            userStates.put(chatId, STATE_WAITING_DELETE_CUSTOM_CITY);
-            StringBuilder sb = new StringBuilder();
-            sb.append("en".equals(lang) ? "🗑️ <b>Delete Custom City</b>\n\nYour custom cities:\n" : "🗑️ <b>Удалить пользовательский город</b>\n\nВаши пользовательские города:\n");
-            for (CustomCity cc : customCities) {
-                String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
-                sb.append("• ").append(displayName).append("\n");
-            }
-            sb.append("\n").append("en".equals(lang) ? "Enter the name of the city to delete:" : "Введите название города для удаления:");
-            sendMsg(chatId, sb.toString());
-            return;
-        }
-        // ========== ПОДДЕРЖКА ==========
-        if (text.equals("💬 Поддержка") || text.equals("💬 Support") || text.equals("/support")) {
-            sendMsg(chatId, "en".equals(lang) ?
-                "💬 Support\n\nSend your question like this:\n/support your question\n\nExample:\n/support the time converter is not working\n\n📧 Response time: up to 24 hours. Max 1 message per minute." :
-                "💬 Поддержка\n\nОтправьте ваш вопрос так:\n/support ваш вопрос\n\nПример:\n/support не работает конвертер времени\n\n📧 Время ответа: до 24 часов. Не чаще 1 сообщения в минуту.",
-                getMainMenuKeyboard(lang));
-            return;
-        }
-
-        if (text.startsWith("/support ")) {
-            String question = text.substring(9).trim();
-            if (question.isEmpty()) {
-                sendMsg(chatId, "en".equals(lang) ? "Enter your question:\n/support your question" : "Введите текст вопроса:\n/support ваш вопрос");
-                return;
-            }
-            if (!supportService.canSendMessage(chatId)) {
-                sendMsg(chatId, "en".equals(lang) ? "⏳ Too many messages. Try again in a minute." : "⏳ Слишком часто. Попробуйте через минуту.");
-                return;
-            }
-            try {
-                User sender = userService.getUser(chatId);
-                String displayName = sender != null && sender.getFirstName() != null ? sender.getFirstName() : "@" + (sender != null && sender.getUsername() != null ? sender.getUsername() : String.valueOf(chatId));
-                SupportMessage msg = supportService.createMessage(chatId, sender != null ? sender.getUsername() : null, question);
-                
-                SendMessage adminMsg = new SendMessage();
-                adminMsg.setChatId(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID);
-                adminMsg.setText("🆘 <b>Обращение в поддержку #" + msg.getId() + "</b>\n\n" +
-                    "👤 " + displayName + " (<code>" + chatId + "</code>)\n" +
-                    "💬 " + question + "\n\n" +
-                    "Ответить:\n<code>/reply " + msg.getId() + " ваш ответ</code>\nили напрямую:\n<code>/reply " + chatId + " ваш ответ</code>");
-                adminMsg.setParseMode("HTML");
-                execute(adminMsg);
-                
-                sendMsg(chatId, "en".equals(lang) ?
-                    "✅ Your message has been sent to support! We'll reply within 24 hours." :
-                    "✅ Ваше сообщение отправлено в поддержку! Ответим в течение 24 часов.",
-                    getMainMenuKeyboard(lang));
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + e.getMessage());
-            }
-            return;
-        }
-
-        // ========== АДМИН-ПАНЕЛЬ ==========
-        if ((text.equals("/admin") || text.equals("/adminhelp")) && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
-            try {
-                long totalUsers = userService.getAllUsers().size();
-                long totalTickets = supportService.getAllTickets().size();
-                long newTickets = supportService.getUnanswered().size();
-                
-                String body = "en".equals(lang) ?
-                    "🛡️ <b>ADMIN CONTROL PANEL</b>\n\n" +
-                    "📊 <b>Quick Stats:</b>\n" +
-                    "• 👥 Total users: <b>" + totalUsers + "</b>\n" +
-                    "• 📨 Total tickets: <b>" + totalTickets + "</b>\n" +
-                    "• 🆕 New tickets: <b>" + newTickets + "</b>\n\n" +
-                    "🎯 <b>Available Commands:</b>\n" +
-                    "• /stats - Detailed statistics\n" +
-                    "• /tickets - All support tickets with buttons\n" +
-                    "• /users - List of users\n" +
-                    "• /reply ID text - Reply to ticket or user\n\n" +
-                    "💡 Click buttons below for quick actions:" :
-                    "🛡️ <b>ПАНЕЛЬ УПРАВЛЕНИЯ</b>\n\n" +
-                    "📊 <b>Быстрая статистика:</b>\n" +
-                    "• 👥 Всего пользователей: <b>" + totalUsers + "</b>\n" +
-                    "• 📨 Всего обращений: <b>" + totalTickets + "</b>\n" +
-                    "• 🆕 Новых обращений: <b>" + newTickets + "</b>\n\n" +
-                    "🎯 <b>Доступные команды:</b>\n" +
-                    "• /stats - Подробная статистика\n" +
-                    "• /tickets - Все обращения с кнопками\n" +
-                    "• /users - Список пользователей\n" +
-                    "• /reply ID текст - Ответить на обращение\n\n" +
-                    "💡 Нажмите кнопки ниже для быстрых действий:";
-                
-                SendMessage msg = new SendMessage();
-                msg.setChatId(chatId);
-                msg.setText(body);
-                msg.setParseMode("HTML");
-                
-                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-                
-                List<InlineKeyboardButton> row1 = new ArrayList<>();
-                row1.add(createInlineButton("📊 " + ("en".equals(lang) ? "Statistics" : "Статистика"), "admin_stats"));
-                row1.add(createInlineButton("📨 " + ("en".equals(lang) ? "Tickets" : "Обращения"), "admin_tickets"));
-                keyboard.add(row1);
-                
-                List<InlineKeyboardButton> row2 = new ArrayList<>();
-                row2.add(createInlineButton("👥 " + ("en".equals(lang) ? "Users" : "Пользователи"), "admin_users"));
-                row2.add(createInlineButton("❌ " + ("en".equals(lang) ? "Close" : "Закрыть"), "admin_close"));
-                keyboard.add(row2);
-                
-                markup.setKeyboard(keyboard);
-                msg.setReplyMarkup(markup);
-                
-                execute(msg);
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + e.getMessage());
-            }
-            return;
-        }
-        
-        // ========== КОМАНДА /mystats (статистика пользователя) ==========
-        if (text.equals("/mystats") || text.equals("/stats")) {
-            try {
-                int favCount = userService.getFavorites(chatId).size();
-                int customCount = customCityService.getUserCustomCities(chatId).size();
-                Optional<Reminder> reminder = reminderService.getReminder(chatId);
-                List<SupportMessage> tickets = supportService.getUserMessages(chatId);
-                
-                String body = "en".equals(lang) ?
-                    "📊 <b>YOUR STATISTICS</b>\n\n" +
-                    "⭐ Favorite cities: <b>" + favCount + "</b>\n" +
-                    "🏙️ Custom cities: <b>" + customCount + "</b>\n" +
-                    "⏰ Active reminders: <b>" + (reminder.isPresent() ? 1 : 0) + "</b>\n" +
-                    "💬 Support tickets: <b>" + tickets.size() + "</b>\n" +
-                    "🌐 Language: <b>" + user.getLanguage().toUpperCase() + "</b>\n" +
-                    "🕐 Time format: <b>" + user.getTimeFormat() + "-hour</b>\n" +
-                    (user.getHomeCity() != null ? "🏠 Home city: <b>" + user.getHomeCity() + "</b>" : "") :
-                    "📊 <b>ВАША СТАТИСТИКА</b>\n\n" +
-                    "⭐ Избранных городов: <b>" + favCount + "</b>\n" +
-                    "🏙️ Своих городов: <b>" + customCount + "</b>\n" +
-                    "⏰ Активных напоминаний: <b>" + (reminder.isPresent() ? 1 : 0) + "</b>\n" +
-                    "💬 Обращений в поддержку: <b>" + tickets.size() + "</b>\n" +
-                    "🌐 Язык: <b>" + user.getLanguage().toUpperCase() + "</b>\n" +
-                    "🕐 Формат времени: <b>" + user.getTimeFormat() + "-часовой</b>\n" +
-                    (user.getHomeCity() != null ? "🏠 Домашний город: <b>" + user.getHomeCity() + "</b>" : "");
-                
-                sendMsg(chatId, body);
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + e.getMessage());
-            }
-            return;
-        }
-
-        // ========== КОМАНДА /stats ==========
-        // ========== КОМАНДА /weather ==========
-        // ========== ЭКСПОРТ/ИМПОРТ ИЗБРАННОГО ==========
-        if (text.equals("/export_favorites")) {
-            String currentUsername = user != null ? user.getUsername() : null;
-            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
-                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta." : "🧪 Эта команда в бета-тестировании.");
-                return;
-            }
-            List<String> favorites = userService.getFavorites(chatId);
-            if (favorites.isEmpty()) {
-                sendMsg(chatId, "en".equals(lang) ? "⭐ No favorites to export." : "⭐ Нет избранных городов для экспорта.");
-                return;
-            }
-            
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            String json;
-            try {
-                json = mapper.writeValueAsString(favorites);
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ Error exporting favorites.");
-                return;
-            }
-            
-            sendMsg(chatId, "📤 <b>" + ("en".equals(lang) ? "Your favorites:" : "Ваши избранные:") + "</b>\n\n<code>" + json + "</code>\n\n" + 
-                ("en".equals(lang) ? "Save this code to restore later with /import_favorites" : "Сохраните этот код для восстановления через /import_favorites"));
-            return;
-        }
-        
-        if (text.startsWith("/import_favorites ")) {
-            String json = text.substring(18).trim();
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                List<String> favorites = mapper.readValue(json, mapper.getTypeFactory().constructCollectionType(List.class, String.class));
-                
-                int count = 0;
-                for (String city : favorites) {
-                    if (cityService.findCity(city) != null) {
-                        userService.addFavorite(chatId, city);
-                        count++;
-                    }
-                }
-                
-                sendMsg(chatId, "✅ " + ("en".equals(lang) ? "Imported " + count + " cities" : "Импортировано " + count + " городов"));
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + ("en".equals(lang) ? "Invalid format" : "Неверный формат"));
-            }
-            return;
-        }
-
-
-        if (text.startsWith("/weather ")) {
-            String currentUsername = user != null ? user.getUsername() : null;
-            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
-                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta. Use /join_beta to access it." : "🧪 Эта команда в бета-тестировании. Используйте /join_beta для доступа.");
-                return;
-            }
-            String cityName = text.substring(9).trim();
-            City city = cityService.findCity(cityName);
-            if (city == null) {
-                List<City> found = cityService.searchCitiesFuzzy(cityName);
-                if (!found.isEmpty()) city = found.get(0);
-            }
-            if (city != null) {
-                sendMsg(chatId, cityService.getWeatherOnly(city, lang));
-            } else {
-                sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
-            }
-            return;
-        }
-
-        // ========== КОМАНДА /compare ==========
-        if (text.startsWith("/compare ")) {
-            String currentUsername = user != null ? user.getUsername() : null;
-            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
-                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta. Use /join_beta to access it." : "🧪 Эта команда в бета-тестировании. Используйте /join_beta для доступа.");
-                return;
-            }
-            String[] parts = text.substring(9).trim().split("\\s+");
-            if (parts.length < 2) {
-                sendMsg(chatId, "en".equals(lang) ? "Usage: /compare City1 City2" : "Использование: /compare Город1 Город2");
-                return;
-            }
-            City city1 = cityService.findCity(parts[0]);
-            City city2 = cityService.findCity(parts[1]);
-            if (city1 == null || city2 == null) {
-                sendMsg(chatId, "en".equals(lang) ? "❌ One or both cities not found." : "❌ Один или оба города не найдены.");
-                return;
-            }
-            StringBuilder sb = new StringBuilder();
-            sb.append("📊 <b>").append("en".equals(lang) ? "COMPARISON" : "СРАВНЕНИЕ").append("</b>\\n\\n");
-            java.time.ZoneId z1 = java.time.ZoneId.of(city1.getTimezone());
-            java.time.ZoneId z2 = java.time.ZoneId.of(city2.getTimezone());
-            java.time.ZonedDateTime t1 = java.time.ZonedDateTime.now(z1);
-            java.time.ZonedDateTime t2 = java.time.ZonedDateTime.now(z2);
-            long diffMinutes = java.time.Duration.between(t2, t1).toMinutes();
-            String n1 = cityService.getCityNameLocalized(city1, lang);
-            String n2 = cityService.getCityNameLocalized(city2, lang);
-            String tf = user.getTimeFormat();
-            String tp = "12".equals(tf) ? "hh:mm a" : "HH:mm";
-            sb.append("🏙️ ").append(n1).append(": ").append(t1.format(java.time.format.DateTimeFormatter.ofPattern(tp))).append("\\n");
-            sb.append("🏙️ ").append(n2).append(": ").append(t2.format(java.time.format.DateTimeFormatter.ofPattern(tp))).append("\\n\\n");
-            sb.append("⏱️ ").append("en".equals(lang) ? "Time difference: " : "Разница во времени: ");
-            long hours = Math.abs(diffMinutes) / 60;
-            long mins = Math.abs(diffMinutes) % 60;
-            sb.append(hours).append("h ").append(mins).append("m");
-            sendMsg(chatId, sb.toString());
-            return;
-        }
-
-        // ========== УПРАВЛЕНИЕ ВЕРСИЯМИ ==========
-        if (text.equals("/enable_new_version") && chatId == 1319065617L) {
-            featureFlagService.enableForAll();
-            sendMsg(chatId, "✅ Новая версия включена для ВСЕХ пользователей!");
-            return;
-        }
-        if (text.equals("/disable_new_version") && chatId == 1319065617L) {
-            featureFlagService.disableForAll();
-            sendMsg(chatId, "❌ Новая версия выключена для всех. Только бета-тестеры.");
-            return;
-        }
-        if (text.equals("/beta_status") && chatId == 1319065617L) {
-            String status = featureFlagService.isGlobalEnabled() ? "🟢 ВКЛЮЧЕНА ДЛЯ ВСЕХ" : "🔴 ТОЛЬКО БЕТА";
-            sendMsg(chatId, "📊 Статус версии:\\n" + status + "\\n👥 Бета-тестеров: " + featureFlagService.getBetaCount());
-            return;
-        }
-        if (text.equals("/join_beta")) {
-            featureFlagService.addBetaUser(chatId);
-            sendMsg(chatId, "en".equals(lang) ? 
-                "✅ You joined beta testing! New features are now available." :
-                "✅ Вы присоединились к бета-тестированию! Новые функции доступны.");
-            return;
-        }
-        if (text.equals("/leave_beta")) {
-            featureFlagService.removeBetaUser(chatId);
-            sendMsg(chatId, "en".equals(lang) ?
-                "✅ You left beta testing." :
-                "✅ Вы вышли из бета-тестирования.");
-            return;
-        }
-
-
-        if (text.equals("/stats") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
-            try {
-                long totalUsers = userService.getAllUsers().size();
-                long totalReminders = reminderService.getAllReminders().size();
-                long totalTickets = supportService.getAllTickets().size();
-                long newTickets = supportService.getUnanswered().size();
-                long totalCities = cityService.count();
-                
-                String body = "en".equals(lang) ?
-                    "📊 <b>DETAILED STATISTICS</b>\n\n" +
-                    "👥 Users: <b>" + totalUsers + "</b>\n" +
-                    "⏰ Active reminders: <b>" + totalReminders + "</b>\n" +
-                    "📨 Support tickets: <b>" + totalTickets + "</b>\n" +
-                    "🆕 New tickets: <b>" + newTickets + "</b>\n" +
-                    "🌍 Cities in DB: <b>" + totalCities + "</b>\n\n" +
-                    "🟢 Bot status: <b>ONLINE 24/7</b>\n" +
-                    "🗄️ Database: <b>Neon PostgreSQL</b>\n" +
-                    "🚀 Hosting: <b>Render Cloud</b>" :
-                    "📊 <b>ПОДРОБНАЯ СТАТИСТИКА</b>\n\n" +
-                    "👥 Пользователей: <b>" + totalUsers + "</b>\n" +
-                    "⏰ Активных напоминаний: <b>" + totalReminders + "</b>\n" +
-                    "📨 Обращений в поддержку: <b>" + totalTickets + "</b>\n" +
-                    "🆕 Новых обращений: <b>" + newTickets + "</b>\n" +
-                    "🌍 Городов в базе: <b>" + totalCities + "</b>\n\n" +
-                    "🟢 Статус бота: <b>ОНЛАЙН 24/7</b>\n" +
-                    "🗄️ База данных: <b>Neon PostgreSQL</b>\n" +
-                    "🚀 Хостинг: <b>Render Cloud</b>";
-                
-                sendMsg(chatId, body);
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + e.getMessage());
-            }
-            return;
-        }
-        
-        // ========== КОМАНДА /tickets ==========
-        if (text.equals("/tickets") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
-            try {
-                List<SupportMessage> tickets = supportService.getUnanswered();
-                
-                if (tickets.isEmpty()) {
-                    sendMsg(chatId, "en".equals(lang) ? "✅ No support tickets." : "✅ Нет обращений в поддержку.");
-                    return;
-                }
-                
-                int count = 0;
-                for (int i = tickets.size() - 1; i >= 0 && count < 10; i--, count++) {
-                    SupportMessage t = tickets.get(i);
-                    
-                    SupportMessage.TicketStatus status = t.getStatus() != null ? t.getStatus() : SupportMessage.TicketStatus.NEW;
-                    
-                    String statusEmoji = switch (status) {
-                        case NEW -> "🆕";
-                        case IN_PROGRESS -> "⏳";
-                        case RESOLVED -> "✅";
-                    };
-                    
-                    String statusText = switch (status) {
-                        case NEW -> "en".equals(lang) ? "New" : "Новое";
-                        case IN_PROGRESS -> "en".equals(lang) ? "In Progress" : "В процессе";
-                        case RESOLVED -> "en".equals(lang) ? "Resolved" : "Решено";
-                    };
-                    
-                    String body = statusEmoji + " <b>Ticket #" + t.getId() + "</b> | " + statusText + "\n\n" +
-                        "👤 User: <code>" + t.getChatId() + "</code>\n" +
-                        "💬 " + (t.getText().length() > 100 ? t.getText().substring(0, 100) + "..." : t.getText()) + "\n" +
-                        "📅 " + t.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm"));
-                    
-                    if (t.isAnswered() && t.getAdminReply() != null) {
-                        body += "\n\n✅ <b>Reply:</b> " + t.getAdminReply();
-                    }
-                    
-                    SendMessage msg = new SendMessage();
-                    msg.setChatId(chatId);
-                    msg.setText(body);
-                    msg.setParseMode("HTML");
-                    
-                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                    List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-                    
-                    List<InlineKeyboardButton> row1 = new ArrayList<>();
-                    row1.add(createInlineButton("💬 " + ("en".equals(lang) ? "Reply" : "Ответить"), "ticket_reply_" + t.getId()));
-                    keyboard.add(row1);
-                    
-                    List<InlineKeyboardButton> row2 = new ArrayList<>();
-                    row2.add(createInlineButton("🆕 " + ("en".equals(lang) ? "New" : "Новое"), "ticket_status_" + t.getId() + "_NEW"));
-                    row2.add(createInlineButton("⏳ " + ("en".equals(lang) ? "In Progress" : "В процессе"), "ticket_status_" + t.getId() + "_IN_PROGRESS"));
-                    row2.add(createInlineButton("✅ " + ("en".equals(lang) ? "Resolved" : "Решено"), "ticket_status_" + t.getId() + "_RESOLVED"));
-                    keyboard.add(row2);
-                    
-                    markup.setKeyboard(keyboard);
-                    msg.setReplyMarkup(markup);
-                    
-                    execute(msg);
-                }
-                
-                sendMsg(chatId, "en".equals(lang) ? 
-                    "📨 Showing last " + count + " tickets." :
-                    "📨 Показано последних " + count + " обращений.");
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + e.getMessage());
-            }
-            return;
-        }
-        
-        // ========== КОМАНДА /users (с пагинацией) ==========
-        if (text.equals("/users") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
-            try {
-                List<User> users = userService.getAllUsers();
-                int pageSize = 10;
-                int totalPages = (users.size() + pageSize - 1) / pageSize;
-                int currentPage = 1;
-                
-                int start = (currentPage - 1) * pageSize;
-                int end = Math.min(start + pageSize, users.size());
-                List<User> pageUsers = users.subList(start, end);
-                StringBuilder body = new StringBuilder();
-                body.append("en".equals(lang) ? "👥 <b>USERS (Page " + currentPage + "/" + totalPages + ")</b>\n\n" : "👥 <b>ПОЛЬЗОВАТЕЛИ (Страница " + currentPage + "/" + totalPages + ")</b>\n\n");
-                
-                int count = 0;
-                for (int i = end - 1; i >= start; i--, count++) {
-                    User u = users.get(i);
-                    String name = u.getFirstName() != null ? u.getFirstName() : (u.getUsername() != null ? "@" + u.getUsername() : "ID:" + u.getChatId());
-                    String roleEmoji = switch (u.getRole()) {
-                        case OWNER -> "💎";
-                        case ADMIN -> "👑";
-                        case MODERATOR -> "🛡️";
-                        case USER -> "👤";
-                    };
-                    body.append(count + 1).append(". ").append(roleEmoji).append(" ").append(name).append(" (<code>").append(u.getChatId()).append("</code>)\n");
-                }
-                
-                if (users.isEmpty()) {
-                    body.append("en".equals(lang) ? "No users yet." : "Пока нет пользователей.");
-                }
-                
-                // Кнопки навигации
-                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                
-                List<InlineKeyboardButton> navRow = new ArrayList<>();
-                if (currentPage > 1) {
-                    navRow.add(createInlineButton("⬅️ Prev", "users_page_" + (currentPage - 1)));
-                }
-                navRow.add(createInlineButton("📊 " + currentPage + "/" + totalPages, "users_page_" + currentPage));
-                if (currentPage < totalPages) {
-                    navRow.add(createInlineButton("Next ➡️", "users_page_" + (currentPage + 1)));
-                }
-                rows.add(navRow);
-                
-                markup.setKeyboard(rows);
-                sendMsg(chatId, body.toString(), markup);
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ " + e.getMessage());
-            }
-            return;
-        }
-
-
-        if (text.equals("🏙️ Пользовательский город") || text.equals("🏙️ Custom City")) {
-            String desc = "en".equals(lang) ?
-                "🏙️ <b>Custom City</b>\n\nA custom city is a city that is not in our database.\n\nYou can create your own city by specifying:\n• Name (must be unique)\n• Timezone (e.g., +07 or -11)\n\nTo create a custom city, use the button below:" :
-                "🏙️ <b>Пользовательский город</b>\n\nПользовательский город — это город, которого нет в нашей базе.\n\nВы можете создать свой город, указав:\n• Название (должно быть уникальным)\n• Часовой пояс (например, +07 или -11)\n\nЧтобы создать пользовательский город, используйте кнопку ниже:";
-            
-            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-            InlineKeyboardButton btn = new InlineKeyboardButton();
-            btn.setText("en".equals(lang) ? "➕ Create Custom City" : "➕ Создать пользовательский город");
-            btn.setCallbackData("create_custom_city");
-            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-            List<InlineKeyboardButton> row = new ArrayList<>();
-            row.add(btn);
-            rows.add(row);
-            markup.setKeyboard(rows);
-            sendMsg(chatId, desc, markup);
-            return;
-        }
-        if (text.equals("/cancel") || text.equals("❌ Отмена") || text.equals("❌ Cancel")) {
-            userStates.invalidate(chatId);
-            sendMsg(chatId, "en".equals(lang) ? "✅ Action cancelled." : "✅ Действие отменено.");
-            return;
-        }
-
-        String state = userStates.getIfPresent(chatId);
-        if (state != null) {
-            if (state.equals(STATE_WAITING_CUSTOM_CITY_NAME)) {
-                userStates.invalidate(chatId);
-                String cityName = text.toLowerCase().trim();
-                
-                // Проверяем обычные города
-                City existingCity = cityService.findCity(cityName);
-                if (existingCity != null) {
-                    String msg = "en".equals(lang) ? 
-                        "❌ The name is already taken. Perhaps you were looking for this city:" :
-                        "❌ Название занято. Возможно, вы искали этот город:";
-                    sendMsg(chatId, msg);
-                    sendMsg(chatId, cityService.getCityInfo(existingCity, lang, user.getTimeFormat()), getCityActionsKeyboard(existingCity.getName(), lang));
-                    return;
-                }
-                
-                // Проверяем лимит 3 города
-                if (!customCityService.canCreateMoreCities(chatId)) {
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "❌ You can only create up to 3 custom cities." :
-                        "❌ Вы можете создать максимум 3 пользовательских города.");
-                    return;
-                }
-                
-                // Проверяем пользовательские города ЭТОГО пользователя
-                if (customCityService.isNameTakenByUser(chatId, cityName)) {
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "❌ You already have a custom city with this name." :
-                        "❌ У вас уже есть пользовательский город с таким названием.");
-                    return;
-                }
-                
-                userStates.put(chatId, "CUSTOM_CITY_NAME:" + cityName);
-                sendMsg(chatId, "en".equals(lang) ? 
-                    "✅ Name is available!\n\nNow enter the timezone in format:\n<code>+07</code> or <code>-11</code>" :
-                    "✅ Название свободно!\n\nТеперь введите часовой пояс в формате:\n<code>+07</code> или <code>-11</code>");
-                return;
-            }
-            
-            if (state.startsWith("CUSTOM_CITY_NAME:")) {
-                String cityName = state.substring("CUSTOM_CITY_NAME:".length());
-                String timezone = text.trim();
-                
-                if (!timezone.matches("[+-]\\d{1,2}")) {
-                    sendMsg(chatId, "en".equals(lang) ? 
-                        "❌ Invalid timezone format. Use +07 or -11" :
-                        "❌ Неверный формат часового пояса. Используйте +07 или -11");
-                    return;
-                }
-                
-                int hours = Integer.parseInt(timezone.replace("+", "").replace("-", ""));
-                if (timezone.startsWith("-")) hours = -hours;
-                if (hours > 12 || hours < -12) {
-                    sendMsg(chatId, "en".equals(lang) ? 
-                        "❌ Timezone must be between -12 and +12" :
-                        "❌ Часовой пояс должен быть между -12 и +12");
-                    return;
-                }
-                
-                CustomCity customCity = customCityService.createCustomCity(chatId, cityName, timezone);
-                userStates.invalidate(chatId);
-                
-                String msg = "en".equals(lang) ?
-                    "✅ Custom city <b>" + cityName + "</b> created successfully!\n\n🌐 Timezone: UTC" + timezone :
-                    "✅ Пользовательский город <b>" + cityName + "</b> успешно создан!\n\n🌐 Часовой пояс: UTC" + timezone;
-                sendMsg(chatId, msg);
-                sendMsg(chatId, customCityService.getCustomCityInfo(customCity, lang, user.getTimeFormat()));
-                return;
-            }
-                        if (state.equals(STATE_WAITING_DELETE_CUSTOM_CITY)) {
-                userStates.invalidate(chatId);
-                String cityName = text.toLowerCase().trim();
-                List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
-                CustomCity cityToDelete = null;
-                for (CustomCity cc : customCities) {
-                    if (cc.getName().equalsIgnoreCase(cityName)) {
-                        cityToDelete = cc;
-                        break;
-                    }
-                }
-                if (cityToDelete != null) {
-                    customCityService.deleteCustomCity(cityToDelete);
-                    sendMsg(chatId, "en".equals(lang) ? 
-                        "✅ Custom city deleted successfully!" :
-                        "✅ Пользовательский город успешно удалён!");
-                } else {
-                    sendMsg(chatId, "en".equals(lang) ? 
-                        "❌ Custom city not found in your list." :
-                        "❌ Пользовательский город не найден в вашем списке.");
-                }
-                return;
-            }
-            if (state.startsWith(STATE_WAITING_CHANGE_UTC_CUSTOM + ":")) {
-                String cityName = state.substring((STATE_WAITING_CHANGE_UTC_CUSTOM + ":").length());
-                CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
-                if (customCity != null) {
-                    String newTz = text.trim();
-                    if (!newTz.matches("[+-]\\d{1,2}")) {
-                        sendMsg(chatId, "en".equals(lang) ?
-                            "❌ Invalid timezone format. Use +07 or -11" :
-                            "❌ Неверный формат часового пояса. Используйте +07 или -11");
-                        userStates.invalidate(chatId);
-                        return;
-                    }
-                    
-                    int hours = Integer.parseInt(newTz.replace("+", "").replace("-", ""));
-                    if (newTz.startsWith("-")) hours = -hours;
-                    if (hours > 12 || hours < -12) {
-                        sendMsg(chatId, "en".equals(lang) ?
-                            "❌ Timezone must be between -12 and +12" :
-                            "❌ Часовой пояс должен быть между -12 и +12");
-                        userStates.invalidate(chatId);
-                        return;
-                    }
-                    
-                    customCity.setTimezone(newTz);
-                    customCityService.updateCustomCity(customCity);
-                    String displayName = customCity.getName().substring(0, 1).toUpperCase() + customCity.getName().substring(1);
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "✅ Timezone for <b>" + displayName + "</b> updated to UTC" + newTz :
-                        "✅ Часовой пояс для <b>" + displayName + "</b> обновлён на UTC" + newTz);
-                }
-                userStates.invalidate(chatId);
-                return;
-            }
-
-            if (state.equals(STATE_WAITING_HOME_CITY)) {
-                userStates.invalidate(chatId);
-                String cityName = text.toLowerCase().trim();
-                City city = cityService.findCity(cityName);
-                if (city != null) {
-                    userService.setHomeCity(chatId, cityName);
-                    String displayName = cityService.getCityNameLocalized(city, lang);
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "✅ Home city set to <b>" + displayName + "</b>" :
-                        "✅ Домашний город установлен: <b>" + displayName + "</b>");
-                } else {
-                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                    List<InlineKeyboardButton> row = new ArrayList<>();
-                    row.add(createInlineButton("en".equals(lang) ? "❌ Cancel" : "❌ Отмена", "cancel_home_city"));
-                    rows.add(row);
-                    markup.setKeyboard(rows);
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "❌ This city is not in the database. Please enter another city." :
-                        "❌ Данного города нет в базе данных. Введите другой город.", markup);
-                    userStates.put(chatId, STATE_WAITING_HOME_CITY);
-                }
-                return;
-            }
-
-            if (state.startsWith(STATE_WAITING_CHANGE_NAME_CUSTOM + ":")) {
-                String cityName = state.substring((STATE_WAITING_CHANGE_NAME_CUSTOM + ":").length());
-                CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
-                if (customCity != null) {
-                    String newName = text.toLowerCase().trim();
-                    String oldName = customCity.getName();
-                    customCity.setName(newName);
-                    customCityService.updateCustomCity(customCity);
-                    String displayName = newName.substring(0, 1).toUpperCase() + newName.substring(1);
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "✅ City renamed from <b>" + oldName + "</b> to <b>" + displayName + "</b>" :
-                        "✅ Город переименован из <b>" + oldName + "</b> в <b>" + displayName + "</b>");
-                }
-                userStates.invalidate(chatId);
-                return;
-            }
-
-            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ГОРОДА =====
-            if (state.equals(STATE_WAITING_REMINDER_CITY)) {
-                String cityName = text.toLowerCase().trim();
-                City city = cityService.findCity(cityName);
-                if (city != null) {
-                    userStates.put(chatId, "REMINDER_WAIT_TIME:" + cityName);
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "⏰ Step 2: Enter the time (e.g., 15:00):" :
-                        "⏰ Шаг 2: Введите время (например, 15:00):");
-                } else {
-                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                    List<InlineKeyboardButton> row = new ArrayList<>();
-                    row.add(createInlineButton("en".equals(lang) ? "❌ Cancel" : "❌ Отмена", "cancel_reminder"));
-                    rows.add(row);
-                    markup.setKeyboard(rows);
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "❌ City not found. Try again or cancel." :
-                        "❌ Город не найден. Попробуйте снова или отмените.", markup);
-                }
-                return;
-            }
-
-            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ВРЕМЕНИ =====
-            if (state.startsWith("REMINDER_WAIT_TIME:")) {
-                String cityName = state.substring("REMINDER_WAIT_TIME:".length());
-                String time = text.trim();
-                
-                if (!time.matches("\\d{1,2}:\\d{2}")) {
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "❌ Invalid time format. Use HH:MM (e.g., 15:00)." :
-                        "❌ Неверный формат времени. Используйте ЧЧ:ММ (например, 15:00).");
-                    return;
-                }
-                
-                // Добавляем ведущий ноль если нужно (9:00 -> 09:00)
-                if (time.length() == 4) {
-                    time = "0" + time;
-                }
-                
-                userStates.put(chatId, "REMINDER_WAIT_TEXT:" + cityName + ";;" + time);
-                sendMsg(chatId, "en".equals(lang) ?
-                    "⏰ Step 3: Enter the reminder text:" :
-                    "⏰ Шаг 3: Введите текст напоминалки:");
-                return;
-            }
-
-            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ТЕКСТА =====
-            if (state.startsWith("REMINDER_WAIT_TEXT:")) {
-                String data = state.substring("REMINDER_WAIT_TEXT:".length());
-                String[] parts = data.split(";;", 2);
-                String cityName = parts[0];
-                String time = parts[1];
-                String reminderText = text.trim();
-                
-                userStates.put(chatId, "REMINDER_WAIT_DAYS:" + cityName + ";;" + time + ";;" + reminderText);
-                
-                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                
-                if ("en".equals(lang)) {
-                    rows.add(Arrays.asList(
-                        createInlineButton("Monday", "day_mon"),
-                        createInlineButton("Tuesday", "day_tue")
-                    ));
-                    rows.add(Arrays.asList(
-                        createInlineButton("Wednesday", "day_wed"),
-                        createInlineButton("Thursday", "day_thu")
-                    ));
-                    rows.add(Arrays.asList(
-                        createInlineButton("Friday", "day_fri"),
-                        createInlineButton("Saturday", "day_sat")
-                    ));
-                    rows.add(Arrays.asList(
-                        createInlineButton("Sunday", "day_sun"),
-                        createInlineButton("✅ All Days", "day_all")
-                    ));
-                } else {
-                    rows.add(Arrays.asList(
-                        createInlineButton("Понедельник", "day_пн"),
-                        createInlineButton("Вторник", "day_вт")
-                    ));
-                    rows.add(Arrays.asList(
-                        createInlineButton("Среда", "day_ср"),
-                        createInlineButton("Четверг", "day_чт")
-                    ));
-                    rows.add(Arrays.asList(
-                        createInlineButton("Пятница", "day_пт"),
-                        createInlineButton("Суббота", "day_сб")
-                    ));
-                    rows.add(Arrays.asList(
-                        createInlineButton("Воскресенье", "day_вс"),
-                        createInlineButton("✅ Все дни", "day_all")
-                    ));
-                }
-                
-                markup.setKeyboard(rows);
-                sendMsg(chatId, "en".equals(lang) ?
-                    "⏰ Step 4: Select the days:" :
-                    "⏰ Шаг 4: Выберите дни:", markup);
-                return;
-            }
-
-            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ДНЕЙ =====
-            if (state.startsWith("REMINDER_WAIT_DAYS:")) {
-                String data = state.substring("REMINDER_WAIT_DAYS:".length());
-                String[] parts = data.split(";;", 3);
-                String cityName = parts[0];
-                String time = parts[1];
-                String reminderText = parts[2];
-                String days = text.toLowerCase().trim();
-                
-                // Валидация дней
-                if (!ReminderScheduler.validateDays(days)) {
-                    sendMsg(chatId, "en".equals(lang) ?
-                        "❌ Invalid days format. Use: mon,tue,wed or пн,вт,ср or all" :
-                        "❌ Неверный формат дней. Используйте: пн,вт,ср или mon,tue,wed или все");
-                    return;
-                }
-                
-                reminderService.createReminder(chatId, cityName, time, reminderText, days);
-                userStates.invalidate(chatId);
-                
-                sendMsg(chatId, "en".equals(lang) ?
-                    "✅ Reminder created!\n\n🌍 City: " + cityName + "\n🕐 Time: " + time + "\n📝 Text: " + reminderText + "\n📅 Days: " + days + "\n\nYou will receive a notification when it's time." :
-                    "✅ Напоминалка создана!\n\n🌍 Город: " + cityName + "\n🕐 Время: " + time + "\n📝 Текст: " + reminderText + "\n📅 Дни: " + days + "\n\nВы получите уведомление, когда придёт время.");
-                return;
-            }
-
-            if (state.equals(STATE_WAITING_CITY)) {
-                userStates.invalidate(chatId);
-        
-
-if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
-            String aboutText = "en".equals(lang) ?
-                "🤖 <b>About WorldAtlas Bot</b>\n\n" +
-                "👨‍💻 <b>Creator:</b> @BobrArbuz\n\n" +
-                "🌐 <b>Data Sources:</b>\n" +
-                "• 🌤️ Weather & Geocoding: OpenWeatherMap API\n" +
-                "• 🕐 Timezones: TimeAPI.io / Java Timezone DB\n" +
-                "• 💬 Interface: Telegram Bot API\n\n" +
-                "⚙️ <b>Tech Stack:</b>\n" +
-                "• Java 21 + Spring Boot\n" +
-                "• PostgreSQL (Neon)\n" +
-                "• Caffeine Cache\n" +
-                "• Sentry (error monitoring)\n" +
-                "• Hosting: Render\n\n" +
-                "💡 Questions or suggestions? Use /support!" :
-                "🤖 <b>О боте WorldAtlas</b>\n\n" +
-                "👨‍💻 <b>Создатель:</b> @BobrArbuz\n\n" +
-                "🌐 <b>Источники данных:</b>\n" +
-                "• 🌤️ Погода и поиск городов: OpenWeatherMap API\n" +
-                "• 🕐 Часовые пояса: TimeAPI.io / Java Timezone DB\n" +
-                "• 💬 Интерфейс: Telegram Bot API\n\n" +
-                "⚙️ <b>Технологии:</b>\n" +
-                "• Java 21 + Spring Boot\n" +
-                "• PostgreSQL (Neon)\n" +
-                "• Caffeine Cache (кэширование)\n" +
-                "• Sentry (мониторинг ошибок)\n" +
-                "• Хостинг: Render\n\n" +
-                "💡 Есть вопросы или предложения? Пишите /support!";
-            
-            sendMsg(chatId, aboutText);
-            return;
-        }
-
-        
         if (text.equals("/start")) {
             // Проверяем, новый ли это пользователь
             User newUser = userService.getUser(chatId);
@@ -1918,14 +1051,14 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
         }
 
         if (text.startsWith("CONFIRM ")) {
-            String confirmState = userStates.getIfPresent(chatId);
-            if (confirmState != null && confirmState.startsWith("CONFIRM_ADMIN:")) {
-                String[] parts = confirmState.split(":");
+            String state = userStates.get(chatId);
+            if (state != null && state.startsWith("CONFIRM_ADMIN:")) {
+                String[] parts = state.split(":");
                 if (parts[2].equals(text.substring(8).trim())) {
                     Long targetChatId = Long.parseLong(parts[1]);
                     userService.setRole(targetChatId, User.Role.ADMIN);
                     User target = userService.getUser(targetChatId);
-                    userStates.invalidate(chatId);
+                    userStates.remove(chatId);
                     sendMsg(chatId, "✅ @" + target.getUsername() + " теперь АДМИНИСТРАТОР");
                     notifyAdmin("👑 MAKE ADMIN\nBy: @" + user.getUsername() + "\nTarget: @" + target.getUsername());
                 } else {
@@ -2012,6 +1145,947 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
             sendMsg(chatId, "🌍 Выберите язык / Choose language:", markup);
             return;
         }
+        if (text.equals("/search_city") || text.equals("🔍 Поиск") || text.equals("🔍 Search")) {
+            userStates.put(chatId, STATE_WAITING_CITY);
+            sendMsg(chatId, "en".equals(lang) ? "🔍 Enter city name:" : "🔍 Введите название города:");
+            return;
+        }
+                if (text.equals("/view_favorites") || text.equals("⭐ Избранное") || text.equals("⭐ Favorites")) {
+            try {
+                List<String> favs = userService.getFavorites(chatId);
+                List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
+                
+                if ((favs == null || favs.isEmpty()) && (customCities == null || customCities.isEmpty())) {
+                    sendMsg(chatId, "en".equals(lang) ? "⭐ Your favorites list is empty.\n\nUse /search_city to find cities and add them!" : "⭐ Ваш список избранных городов пуст.\n\nИспользуйте /search_city чтобы найти города и добавить их!");
+                } else {
+                    StringBuilder sb = new StringBuilder();
+                    
+                    if (favs != null && !favs.isEmpty()) {
+                        sb.append("en".equals(lang) ? "⭐ <b>Your Favorites:</b>\n\n" : "⭐ <b>Ваше избранное:</b>\n\n");
+                        for (String cityName : favs) {
+                            City city = cityService.findCity(cityName);
+                            if (city != null) {
+                                String displayName = cityService.getCityNameLocalized(city, lang);
+                                String countryName = cityService.getCountryLocalized(city, lang);
+                                java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
+                                String timeFormat = user.getTimeFormat();
+                                String timeStr = "12".equals(timeFormat) ? 
+                                    cityTime.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a")) :
+                                    cityTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+                                int offsetSeconds = cityTime.getOffset().getTotalSeconds();
+                                int offsetHours = offsetSeconds / 3600;
+                                String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
+                                sb.append("🌍 <b>").append(displayName).append("</b>\n")
+                                  .append("   📍 ").append(countryName).append("\n")
+                                  .append("   🕐 ").append(timeStr).append(" | 🌐 ").append(utcStr).append("\n\n");
+                            }
+                        }
+                    }
+                    
+                    if (customCities != null && !customCities.isEmpty()) {
+                        sb.append("🏙️ <b>").append("en".equals(lang) ? "Custom Cities:" : "Пользовательские города:").append("</b>\n\n");
+                        for (CustomCity cc : customCities) {
+                            ZonedDateTime now = customCityService.getTimeForCustomCity(cc);
+                            String timeFormat = user.getTimeFormat();
+                            String timeStr = "12".equals(timeFormat) ? 
+                                now.format(DateTimeFormatter.ofPattern("hh:mm a")) :
+                                now.format(DateTimeFormatter.ofPattern("HH:mm"));
+                            String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
+                            sb.append("🏙️ <b>").append(displayName).append("</b>\n")
+                              .append("   🌐 UTC").append(cc.getTimezone()).append("\n")
+                              .append("   🕐 ").append(timeStr).append("\n\n");
+                        }
+                    }
+                    
+                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                    InlineKeyboardButton removeBtn = new InlineKeyboardButton();
+                    removeBtn.setText("en".equals(lang) ? "🗑️ Remove city" : "🗑️ Удалить город");
+                    removeBtn.setCallbackData("remove_fav:start");
+                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                    List<InlineKeyboardButton> row = new ArrayList<>();
+                    row.add(removeBtn);
+                    rows.add(row);
+                    markup.setKeyboard(rows);
+                    
+                    sendMsg(chatId, sb.toString(), markup);
+                }
+            } catch (Exception e) {
+                log.error("Favorites error: {}", e.getMessage(), e);
+                sendMsg(chatId, "❌ Error loading favorites: " + e.getMessage());
+            }
+            return;
+        }
+                if (text.equals("/create_custom")) {
+            userStates.put(chatId, STATE_WAITING_CUSTOM_CITY_NAME);
+            sendMsg(chatId, "en".equals(lang) ? 
+                "🏙️ Enter the name of your custom city:" :
+                "🏙️ Введите название вашего пользовательского города:");
+            return;
+        }
+
+        if (text.equals("/list_custom")) {
+            List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
+            if (customCities.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ? 
+                    "🏙️ You have no custom cities." :
+                    "🏙️ У вас нет пользовательских городов.");
+            } else {
+                StringBuilder sb = new StringBuilder();
+                sb.append("en".equals(lang) ? "🏙️ <b>Your Custom Cities:</b>\n\n" : "🏙️ <b>Ваши пользовательские города:</b>\n\n");
+                for (CustomCity cc : customCities) {
+                    ZonedDateTime now = customCityService.getTimeForCustomCity(cc);
+                    String timeStr = now.format(DateTimeFormatter.ofPattern("HH:mm"));
+                    String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
+                    sb.append("🏙️ <b>").append(displayName).append("</b>\n")
+                      .append("   🌐 UTC").append(cc.getTimezone()).append("\n")
+                      .append("   🕐 ").append(timeStr).append("\n\n");
+                }
+                sendMsg(chatId, sb.toString());
+            }
+            return;
+        }
+
+        if (text.startsWith("/change_UTC_custom ")) {
+            String cityName = text.substring("/change_UTC_custom ".length()).toLowerCase().trim();
+            CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
+            if (customCity != null) {
+                userStates.put(chatId, STATE_WAITING_CHANGE_UTC_CUSTOM + ":" + cityName);
+                sendMsg(chatId, "en".equals(lang) ?
+                    "🕐 Enter new timezone in format +07 or -11:" :
+                    "🕐 Введите новый часовой пояс в формате +07 или -11:");
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Custom city not found." :
+                    "❌ Пользовательский город не найден.");
+            }
+            return;
+        }
+
+        if (text.startsWith("/change_name_custom ")) {
+            String cityName = text.substring("/change_name_custom ".length()).toLowerCase().trim();
+            CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
+            if (customCity != null) {
+                userStates.put(chatId, STATE_WAITING_CHANGE_NAME_CUSTOM + ":" + cityName);
+                sendMsg(chatId, "en".equals(lang) ?
+                    "✏️ Enter new city name:" :
+                    "✏️ Введите новое название города:");
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Custom city not found." :
+                    "❌ Пользовательский город не найден.");
+            }
+            return;
+        }
+
+        if (text.equals("/delete_custom")) {
+            List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
+            if (customCities.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ? 
+                    "🏙️ You have no custom cities to delete." :
+                    "🏙️ У вас нет пользовательских городов для удаления.");
+                return;
+            }
+            userStates.put(chatId, STATE_WAITING_DELETE_CUSTOM_CITY);
+            StringBuilder sb = new StringBuilder();
+            sb.append("en".equals(lang) ? "🗑️ <b>Delete Custom City</b>\n\nYour custom cities:\n" : "🗑️ <b>Удалить пользовательский город</b>\n\nВаши пользовательские города:\n");
+            for (CustomCity cc : customCities) {
+                String displayName = cc.getName().substring(0, 1).toUpperCase() + cc.getName().substring(1);
+                sb.append("• ").append(displayName).append("\n");
+            }
+            sb.append("\n").append("en".equals(lang) ? "Enter the name of the city to delete:" : "Введите название города для удаления:");
+            sendMsg(chatId, sb.toString());
+            return;
+        }
+        // ========== ПОДДЕРЖКА ==========
+        if (text.equals("💬 Поддержка") || text.equals("💬 Support") || text.equals("/support")) {
+            sendMsg(chatId, "en".equals(lang) ?
+                "💬 Support\n\nSend your question like this:\n/support your question\n\nExample:\n/support the time converter is not working\n\n📧 Response time: up to 24 hours. Max 1 message per minute." :
+                "💬 Поддержка\n\nОтправьте ваш вопрос так:\n/support ваш вопрос\n\nПример:\n/support не работает конвертер времени\n\n📧 Время ответа: до 24 часов. Не чаще 1 сообщения в минуту.",
+                getMainMenuKeyboard(lang));
+            return;
+        }
+
+        if (text.startsWith("/support ")) {
+            String question = text.substring(9).trim();
+            if (question.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ? "Enter your question:\n/support your question" : "Введите текст вопроса:\n/support ваш вопрос");
+                return;
+            }
+            if (!supportService.canSendMessage(chatId)) {
+                sendMsg(chatId, "en".equals(lang) ? "⏳ Too many messages. Try again in a minute." : "⏳ Слишком часто. Попробуйте через минуту.");
+                return;
+            }
+            try {
+                User sender = userService.getUser(chatId);
+                String displayName = sender != null && sender.getFirstName() != null ? sender.getFirstName() : "@" + (sender != null && sender.getUsername() != null ? sender.getUsername() : String.valueOf(chatId));
+                SupportMessage msg = supportService.createMessage(chatId, sender != null ? sender.getUsername() : null, question);
+                
+                SendMessage adminMsg = new SendMessage();
+                adminMsg.setChatId(com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID);
+                adminMsg.setText("🆘 <b>Обращение в поддержку #" + msg.getId() + "</b>\n\n" +
+                    "👤 " + displayName + " (<code>" + chatId + "</code>)\n" +
+                    "💬 " + question + "\n\n" +
+                    "Ответить:\n<code>/reply " + msg.getId() + " ваш ответ</code>\nили напрямую:\n<code>/reply " + chatId + " ваш ответ</code>");
+                adminMsg.setParseMode("HTML");
+                execute(adminMsg);
+                
+                sendMsg(chatId, "en".equals(lang) ?
+                    "✅ Your message has been sent to support! We'll reply within 24 hours." :
+                    "✅ Ваше сообщение отправлено в поддержку! Ответим в течение 24 часов.",
+                    getMainMenuKeyboard(lang));
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+
+        // ========== АДМИН-ПАНЕЛЬ ==========
+        if ((text.equals("/admin") || text.equals("/adminhelp")) && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                long totalUsers = userService.getAllUsers().size();
+                long totalTickets = supportService.getAllTickets().size();
+                long newTickets = supportService.getUnanswered().size();
+                
+                String body = "en".equals(lang) ?
+                    "🛡️ <b>ADMIN CONTROL PANEL</b>\n\n" +
+                    "📊 <b>Quick Stats:</b>\n" +
+                    "• 👥 Total users: <b>" + totalUsers + "</b>\n" +
+                    "• 📨 Total tickets: <b>" + totalTickets + "</b>\n" +
+                    "• 🆕 New tickets: <b>" + newTickets + "</b>\n\n" +
+                    "🎯 <b>Available Commands:</b>\n" +
+                    "• /stats - Detailed statistics\n" +
+                    "• /tickets - All support tickets with buttons\n" +
+                    "• /users - List of users\n" +
+                    "• /reply ID text - Reply to ticket or user\n\n" +
+                    "💡 Click buttons below for quick actions:" :
+                    "🛡️ <b>ПАНЕЛЬ УПРАВЛЕНИЯ</b>\n\n" +
+                    "📊 <b>Быстрая статистика:</b>\n" +
+                    "• 👥 Всего пользователей: <b>" + totalUsers + "</b>\n" +
+                    "• 📨 Всего обращений: <b>" + totalTickets + "</b>\n" +
+                    "• 🆕 Новых обращений: <b>" + newTickets + "</b>\n\n" +
+                    "🎯 <b>Доступные команды:</b>\n" +
+                    "• /stats - Подробная статистика\n" +
+                    "• /tickets - Все обращения с кнопками\n" +
+                    "• /users - Список пользователей\n" +
+                    "• /reply ID текст - Ответить на обращение\n\n" +
+                    "💡 Нажмите кнопки ниже для быстрых действий:";
+                
+                SendMessage msg = new SendMessage();
+                msg.setChatId(chatId);
+                msg.setText(body);
+                msg.setParseMode("HTML");
+                
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+                
+                List<InlineKeyboardButton> row1 = new ArrayList<>();
+                row1.add(createInlineButton("📊 " + ("en".equals(lang) ? "Statistics" : "Статистика"), "admin_stats"));
+                row1.add(createInlineButton("📨 " + ("en".equals(lang) ? "Tickets" : "Обращения"), "admin_tickets"));
+                keyboard.add(row1);
+                
+                List<InlineKeyboardButton> row2 = new ArrayList<>();
+                row2.add(createInlineButton("👥 " + ("en".equals(lang) ? "Users" : "Пользователи"), "admin_users"));
+                row2.add(createInlineButton("❌ " + ("en".equals(lang) ? "Close" : "Закрыть"), "admin_close"));
+                keyboard.add(row2);
+                
+                markup.setKeyboard(keyboard);
+                msg.setReplyMarkup(markup);
+                
+                execute(msg);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+        
+        // ========== КОМАНДА /mystats (статистика пользователя) ==========
+        if (text.equals("/mystats") || text.equals("/stats")) {
+            try {
+                int favCount = userService.getFavorites(chatId).size();
+                int customCount = customCityService.getUserCustomCities(chatId).size();
+                Optional<Reminder> reminder = reminderService.getReminder(chatId);
+                List<SupportMessage> tickets = supportService.getUserMessages(chatId);
+                
+                String body = "en".equals(lang) ?
+                    "📊 <b>YOUR STATISTICS</b>\n\n" +
+                    "⭐ Favorite cities: <b>" + favCount + "</b>\n" +
+                    "🏙️ Custom cities: <b>" + customCount + "</b>\n" +
+                    "⏰ Active reminders: <b>" + (reminder.isPresent() ? 1 : 0) + "</b>\n" +
+                    "💬 Support tickets: <b>" + tickets.size() + "</b>\n" +
+                    "🌐 Language: <b>" + user.getLanguage().toUpperCase() + "</b>\n" +
+                    "🕐 Time format: <b>" + user.getTimeFormat() + "-hour</b>\n" +
+                    (user.getHomeCity() != null ? "🏠 Home city: <b>" + user.getHomeCity() + "</b>" : "") :
+                    "📊 <b>ВАША СТАТИСТИКА</b>\n\n" +
+                    "⭐ Избранных городов: <b>" + favCount + "</b>\n" +
+                    "🏙️ Своих городов: <b>" + customCount + "</b>\n" +
+                    "⏰ Активных напоминаний: <b>" + (reminder.isPresent() ? 1 : 0) + "</b>\n" +
+                    "💬 Обращений в поддержку: <b>" + tickets.size() + "</b>\n" +
+                    "🌐 Язык: <b>" + user.getLanguage().toUpperCase() + "</b>\n" +
+                    "🕐 Формат времени: <b>" + user.getTimeFormat() + "-часовой</b>\n" +
+                    (user.getHomeCity() != null ? "🏠 Домашний город: <b>" + user.getHomeCity() + "</b>" : "");
+                
+                sendMsg(chatId, body);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+
+        // ========== КОМАНДА /stats ==========
+        // ========== КОМАНДА /weather ==========
+        // ========== ЭКСПОРТ/ИМПОРТ ИЗБРАННОГО ==========
+        if (text.equals("/export_favorites")) {
+            String currentUsername = user != null ? user.getUsername() : null;
+            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
+                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta." : "🧪 Эта команда в бета-тестировании.");
+                return;
+            }
+            List<String> favorites = userService.getFavorites(chatId);
+            if (favorites.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ? "⭐ No favorites to export." : "⭐ Нет избранных городов для экспорта.");
+                return;
+            }
+            
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String json;
+            try {
+                json = mapper.writeValueAsString(favorites);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ Error exporting favorites.");
+                return;
+            }
+            
+            sendMsg(chatId, "📤 <b>" + ("en".equals(lang) ? "Your favorites:" : "Ваши избранные:") + "</b>\n\n<code>" + json + "</code>\n\n" + 
+                ("en".equals(lang) ? "Save this code to restore later with /import_favorites" : "Сохраните этот код для восстановления через /import_favorites"));
+            return;
+        }
+        
+        if (text.startsWith("/import_favorites ")) {
+            String json = text.substring(18).trim();
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                List<String> favorites = mapper.readValue(json, mapper.getTypeFactory().constructCollectionType(List.class, String.class));
+                
+                int count = 0;
+                for (String city : favorites) {
+                    if (cityService.findCity(city) != null) {
+                        userService.addFavorite(chatId, city);
+                        count++;
+                    }
+                }
+                
+                sendMsg(chatId, "✅ " + ("en".equals(lang) ? "Imported " + count + " cities" : "Импортировано " + count + " городов"));
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + ("en".equals(lang) ? "Invalid format" : "Неверный формат"));
+            }
+            return;
+        }
+
+
+        if (text.startsWith("/weather ")) {
+            String currentUsername = user != null ? user.getUsername() : null;
+            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
+                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta. Use /join_beta to access it." : "🧪 Эта команда в бета-тестировании. Используйте /join_beta для доступа.");
+                return;
+            }
+            String cityName = text.substring(9).trim();
+            City city = cityService.findCity(cityName);
+            if (city == null) {
+                List<City> found = cityService.searchCitiesFuzzy(cityName);
+                if (!found.isEmpty()) city = found.get(0);
+            }
+            if (city != null) {
+                sendMsg(chatId, cityService.getWeatherOnly(city, lang));
+            } else {
+                sendMsg(chatId, "en".equals(lang) ? "❌ City not found." : "❌ Город не найден.");
+            }
+            return;
+        }
+
+        // ========== КОМАНДА /compare ==========
+        if (text.startsWith("/compare ")) {
+            String currentUsername = user != null ? user.getUsername() : null;
+            if (!featureFlagService.isNewVersion(chatId, currentUsername)) {
+                sendMsg(chatId, "en".equals(lang) ? "🧪 This command is in beta. Use /join_beta to access it." : "🧪 Эта команда в бета-тестировании. Используйте /join_beta для доступа.");
+                return;
+            }
+            String[] parts = text.substring(9).trim().split("\\s+");
+            if (parts.length < 2) {
+                sendMsg(chatId, "en".equals(lang) ? "Usage: /compare City1 City2" : "Использование: /compare Город1 Город2");
+                return;
+            }
+            City city1 = cityService.findCity(parts[0]);
+            City city2 = cityService.findCity(parts[1]);
+            if (city1 == null || city2 == null) {
+                sendMsg(chatId, "en".equals(lang) ? "❌ One or both cities not found." : "❌ Один или оба города не найдены.");
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("📊 <b>").append("en".equals(lang) ? "COMPARISON" : "СРАВНЕНИЕ").append("</b>\\n\\n");
+            java.time.ZoneId z1 = java.time.ZoneId.of(city1.getTimezone());
+            java.time.ZoneId z2 = java.time.ZoneId.of(city2.getTimezone());
+            java.time.ZonedDateTime t1 = java.time.ZonedDateTime.now(z1);
+            java.time.ZonedDateTime t2 = java.time.ZonedDateTime.now(z2);
+            long diffMinutes = java.time.Duration.between(t2, t1).toMinutes();
+            String n1 = cityService.getCityNameLocalized(city1, lang);
+            String n2 = cityService.getCityNameLocalized(city2, lang);
+            String tf = user.getTimeFormat();
+            String tp = "12".equals(tf) ? "hh:mm a" : "HH:mm";
+            sb.append("🏙️ ").append(n1).append(": ").append(t1.format(java.time.format.DateTimeFormatter.ofPattern(tp))).append("\\n");
+            sb.append("🏙️ ").append(n2).append(": ").append(t2.format(java.time.format.DateTimeFormatter.ofPattern(tp))).append("\\n\\n");
+            sb.append("⏱️ ").append("en".equals(lang) ? "Time difference: " : "Разница во времени: ");
+            long hours = Math.abs(diffMinutes) / 60;
+            long mins = Math.abs(diffMinutes) % 60;
+            sb.append(hours).append("h ").append(mins).append("m");
+            sendMsg(chatId, sb.toString());
+            return;
+        }
+
+        // ========== УПРАВЛЕНИЕ ВЕРСИЯМИ ==========
+        if (text.equals("/enable_new_version") && chatId == 1319065617L) {
+            featureFlagService.enableForAll();
+            sendMsg(chatId, "✅ Новая версия включена для ВСЕХ пользователей!");
+            return;
+        }
+        if (text.equals("/disable_new_version") && chatId == 1319065617L) {
+            featureFlagService.disableForAll();
+            sendMsg(chatId, "❌ Новая версия выключена для всех. Только бета-тестеры.");
+            return;
+        }
+        if (text.equals("/beta_status") && chatId == 1319065617L) {
+            String status = featureFlagService.isGlobalEnabled() ? "🟢 ВКЛЮЧЕНА ДЛЯ ВСЕХ" : "🔴 ТОЛЬКО БЕТА";
+            sendMsg(chatId, "📊 Статус версии:\\n" + status + "\\n👥 Бета-тестеров: " + featureFlagService.getBetaCount());
+            return;
+        }
+        if (text.equals("/join_beta")) {
+            featureFlagService.addBetaUser(chatId);
+            sendMsg(chatId, "en".equals(lang) ? 
+                "✅ You joined beta testing! New features are now available." :
+                "✅ Вы присоединились к бета-тестированию! Новые функции доступны.");
+            return;
+        }
+        if (text.equals("/leave_beta")) {
+            featureFlagService.removeBetaUser(chatId);
+            sendMsg(chatId, "en".equals(lang) ?
+                "✅ You left beta testing." :
+                "✅ Вы вышли из бета-тестирования.");
+            return;
+        }
+
+
+        if (text.equals("/stats") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                long totalUsers = userService.getAllUsers().size();
+                long totalReminders = reminderService.getAllReminders().size();
+                long totalTickets = supportService.getAllTickets().size();
+                long newTickets = supportService.getUnanswered().size();
+                long totalCities = cityService.count();
+                
+                String body = "en".equals(lang) ?
+                    "📊 <b>DETAILED STATISTICS</b>\n\n" +
+                    "👥 Users: <b>" + totalUsers + "</b>\n" +
+                    "⏰ Active reminders: <b>" + totalReminders + "</b>\n" +
+                    "📨 Support tickets: <b>" + totalTickets + "</b>\n" +
+                    "🆕 New tickets: <b>" + newTickets + "</b>\n" +
+                    "🌍 Cities in DB: <b>" + totalCities + "</b>\n\n" +
+                    "🟢 Bot status: <b>ONLINE 24/7</b>\n" +
+                    "🗄️ Database: <b>Neon PostgreSQL</b>\n" +
+                    "🚀 Hosting: <b>Render Cloud</b>" :
+                    "📊 <b>ПОДРОБНАЯ СТАТИСТИКА</b>\n\n" +
+                    "👥 Пользователей: <b>" + totalUsers + "</b>\n" +
+                    "⏰ Активных напоминаний: <b>" + totalReminders + "</b>\n" +
+                    "📨 Обращений в поддержку: <b>" + totalTickets + "</b>\n" +
+                    "🆕 Новых обращений: <b>" + newTickets + "</b>\n" +
+                    "🌍 Городов в базе: <b>" + totalCities + "</b>\n\n" +
+                    "🟢 Статус бота: <b>ОНЛАЙН 24/7</b>\n" +
+                    "🗄️ База данных: <b>Neon PostgreSQL</b>\n" +
+                    "🚀 Хостинг: <b>Render Cloud</b>";
+                
+                sendMsg(chatId, body);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+        
+        // ========== КОМАНДА /tickets ==========
+        if (text.equals("/tickets") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                List<SupportMessage> tickets = supportService.getUnanswered();
+                
+                if (tickets.isEmpty()) {
+                    sendMsg(chatId, "en".equals(lang) ? "✅ No support tickets." : "✅ Нет обращений в поддержку.");
+                    return;
+                }
+                
+                int count = 0;
+                for (int i = tickets.size() - 1; i >= 0 && count < 10; i--, count++) {
+                    SupportMessage t = tickets.get(i);
+                    
+                    SupportMessage.TicketStatus status = t.getStatus() != null ? t.getStatus() : SupportMessage.TicketStatus.NEW;
+                    
+                    String statusEmoji = switch (status) {
+                        case NEW -> "🆕";
+                        case IN_PROGRESS -> "⏳";
+                        case RESOLVED -> "✅";
+                    };
+                    
+                    String statusText = switch (status) {
+                        case NEW -> "en".equals(lang) ? "New" : "Новое";
+                        case IN_PROGRESS -> "en".equals(lang) ? "In Progress" : "В процессе";
+                        case RESOLVED -> "en".equals(lang) ? "Resolved" : "Решено";
+                    };
+                    
+                    String body = statusEmoji + " <b>Ticket #" + t.getId() + "</b> | " + statusText + "\n\n" +
+                        "👤 User: <code>" + t.getChatId() + "</code>\n" +
+                        "💬 " + (t.getText().length() > 100 ? t.getText().substring(0, 100) + "..." : t.getText()) + "\n" +
+                        "📅 " + t.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm"));
+                    
+                    if (t.isAnswered() && t.getAdminReply() != null) {
+                        body += "\n\n✅ <b>Reply:</b> " + t.getAdminReply();
+                    }
+                    
+                    SendMessage msg = new SendMessage();
+                    msg.setChatId(chatId);
+                    msg.setText(body);
+                    msg.setParseMode("HTML");
+                    
+                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                    List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+                    
+                    List<InlineKeyboardButton> row1 = new ArrayList<>();
+                    row1.add(createInlineButton("💬 " + ("en".equals(lang) ? "Reply" : "Ответить"), "ticket_reply_" + t.getId()));
+                    keyboard.add(row1);
+                    
+                    List<InlineKeyboardButton> row2 = new ArrayList<>();
+                    row2.add(createInlineButton("🆕 " + ("en".equals(lang) ? "New" : "Новое"), "ticket_status_" + t.getId() + "_NEW"));
+                    row2.add(createInlineButton("⏳ " + ("en".equals(lang) ? "In Progress" : "В процессе"), "ticket_status_" + t.getId() + "_IN_PROGRESS"));
+                    row2.add(createInlineButton("✅ " + ("en".equals(lang) ? "Resolved" : "Решено"), "ticket_status_" + t.getId() + "_RESOLVED"));
+                    keyboard.add(row2);
+                    
+                    markup.setKeyboard(keyboard);
+                    msg.setReplyMarkup(markup);
+                    
+                    execute(msg);
+                }
+                
+                sendMsg(chatId, "en".equals(lang) ? 
+                    "📨 Showing last " + count + " tickets." :
+                    "📨 Показано последних " + count + " обращений.");
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+        
+        // ========== КОМАНДА /users (с пагинацией) ==========
+        if (text.equals("/users") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                List<User> users = userService.getAllUsers();
+                int pageSize = 10;
+                int totalPages = (users.size() + pageSize - 1) / pageSize;
+                int currentPage = 1;
+                
+                int start = (currentPage - 1) * pageSize;
+                int end = Math.min(start + pageSize, users.size());
+                List<User> pageUsers = users.subList(start, end);
+                StringBuilder body = new StringBuilder();
+                body.append("en".equals(lang) ? "👥 <b>USERS (Page " + currentPage + "/" + totalPages + ")</b>\n\n" : "👥 <b>ПОЛЬЗОВАТЕЛИ (Страница " + currentPage + "/" + totalPages + ")</b>\n\n");
+                
+                int count = 0;
+                for (int i = end - 1; i >= start; i--, count++) {
+                    User u = users.get(i);
+                    String name = u.getFirstName() != null ? u.getFirstName() : (u.getUsername() != null ? "@" + u.getUsername() : "ID:" + u.getChatId());
+                    String roleEmoji = switch (u.getRole()) {
+                        case OWNER -> "💎";
+                        case ADMIN -> "👑";
+                        case MODERATOR -> "🛡️";
+                        case USER -> "👤";
+                    };
+                    body.append(count + 1).append(". ").append(roleEmoji).append(" ").append(name).append(" (<code>").append(u.getChatId()).append("</code>)\n");
+                }
+                
+                if (users.isEmpty()) {
+                    body.append("en".equals(lang) ? "No users yet." : "Пока нет пользователей.");
+                }
+                
+                // Кнопки навигации
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                
+                List<InlineKeyboardButton> navRow = new ArrayList<>();
+                if (currentPage > 1) {
+                    navRow.add(createInlineButton("⬅️ Prev", "users_page_" + (currentPage - 1)));
+                }
+                navRow.add(createInlineButton("📊 " + currentPage + "/" + totalPages, "users_page_" + currentPage));
+                if (currentPage < totalPages) {
+                    navRow.add(createInlineButton("Next ➡️", "users_page_" + (currentPage + 1)));
+                }
+                rows.add(navRow);
+                
+                markup.setKeyboard(rows);
+                sendMsg(chatId, body.toString(), markup);
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ " + e.getMessage());
+            }
+            return;
+        }
+
+
+        if (text.equals("🏙️ Пользовательский город") || text.equals("🏙️ Custom City")) {
+            String desc = "en".equals(lang) ?
+                "🏙️ <b>Custom City</b>\n\nA custom city is a city that is not in our database.\n\nYou can create your own city by specifying:\n• Name (must be unique)\n• Timezone (e.g., +07 or -11)\n\nTo create a custom city, use the button below:" :
+                "🏙️ <b>Пользовательский город</b>\n\nПользовательский город — это город, которого нет в нашей базе.\n\nВы можете создать свой город, указав:\n• Название (должно быть уникальным)\n• Часовой пояс (например, +07 или -11)\n\nЧтобы создать пользовательский город, используйте кнопку ниже:";
+            
+            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+            InlineKeyboardButton btn = new InlineKeyboardButton();
+            btn.setText("en".equals(lang) ? "➕ Create Custom City" : "➕ Создать пользовательский город");
+            btn.setCallbackData("create_custom_city");
+            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+            List<InlineKeyboardButton> row = new ArrayList<>();
+            row.add(btn);
+            rows.add(row);
+            markup.setKeyboard(rows);
+            sendMsg(chatId, desc, markup);
+            return;
+        }
+        if (text.equals("/cancel") || text.equals("❌ Отмена") || text.equals("❌ Cancel")) {
+            userStates.remove(chatId);
+            sendMsg(chatId, "en".equals(lang) ? "✅ Action cancelled." : "✅ Действие отменено.");
+            return;
+        }
+
+        String state = userStates.get(chatId);
+        if (state != null) {
+            if (state.equals(STATE_WAITING_CUSTOM_CITY_NAME)) {
+                userStates.remove(chatId);
+                String cityName = text.toLowerCase().trim();
+                
+                // Проверяем обычные города
+                City existingCity = cityService.findCity(cityName);
+                if (existingCity != null) {
+                    String msg = "en".equals(lang) ? 
+                        "❌ The name is already taken. Perhaps you were looking for this city:" :
+                        "❌ Название занято. Возможно, вы искали этот город:";
+                    sendMsg(chatId, msg);
+                    sendMsg(chatId, cityService.getCityInfo(existingCity, lang, user.getTimeFormat()), getCityActionsKeyboard(existingCity.getName(), lang));
+                    return;
+                }
+                
+                // Проверяем лимит 3 города
+                if (!customCityService.canCreateMoreCities(chatId)) {
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ You can only create up to 3 custom cities." :
+                        "❌ Вы можете создать максимум 3 пользовательских города.");
+                    return;
+                }
+                
+                // Проверяем пользовательские города ЭТОГО пользователя
+                if (customCityService.isNameTakenByUser(chatId, cityName)) {
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ You already have a custom city with this name." :
+                        "❌ У вас уже есть пользовательский город с таким названием.");
+                    return;
+                }
+                
+                userStates.put(chatId, "CUSTOM_CITY_NAME:" + cityName);
+                sendMsg(chatId, "en".equals(lang) ? 
+                    "✅ Name is available!\n\nNow enter the timezone in format:\n<code>+07</code> or <code>-11</code>" :
+                    "✅ Название свободно!\n\nТеперь введите часовой пояс в формате:\n<code>+07</code> или <code>-11</code>");
+                return;
+            }
+            
+            if (state.startsWith("CUSTOM_CITY_NAME:")) {
+                String cityName = state.substring("CUSTOM_CITY_NAME:".length());
+                String timezone = text.trim();
+                
+                if (!timezone.matches("[+-]\\d{1,2}")) {
+                    sendMsg(chatId, "en".equals(lang) ? 
+                        "❌ Invalid timezone format. Use +07 or -11" :
+                        "❌ Неверный формат часового пояса. Используйте +07 или -11");
+                    return;
+                }
+                
+                int hours = Integer.parseInt(timezone.replace("+", "").replace("-", ""));
+                if (timezone.startsWith("-")) hours = -hours;
+                if (hours > 12 || hours < -12) {
+                    sendMsg(chatId, "en".equals(lang) ? 
+                        "❌ Timezone must be between -12 and +12" :
+                        "❌ Часовой пояс должен быть между -12 и +12");
+                    return;
+                }
+                
+                CustomCity customCity = customCityService.createCustomCity(chatId, cityName, timezone);
+                userStates.remove(chatId);
+                
+                String msg = "en".equals(lang) ?
+                    "✅ Custom city <b>" + cityName + "</b> created successfully!\n\n🌐 Timezone: UTC" + timezone :
+                    "✅ Пользовательский город <b>" + cityName + "</b> успешно создан!\n\n🌐 Часовой пояс: UTC" + timezone;
+                sendMsg(chatId, msg);
+                sendMsg(chatId, customCityService.getCustomCityInfo(customCity, lang, user.getTimeFormat()));
+                return;
+            }
+                        if (state.equals(STATE_WAITING_DELETE_CUSTOM_CITY)) {
+                userStates.remove(chatId);
+                String cityName = text.toLowerCase().trim();
+                List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
+                CustomCity cityToDelete = null;
+                for (CustomCity cc : customCities) {
+                    if (cc.getName().equalsIgnoreCase(cityName)) {
+                        cityToDelete = cc;
+                        break;
+                    }
+                }
+                if (cityToDelete != null) {
+                    customCityService.deleteCustomCity(cityToDelete);
+                    sendMsg(chatId, "en".equals(lang) ? 
+                        "✅ Custom city deleted successfully!" :
+                        "✅ Пользовательский город успешно удалён!");
+                } else {
+                    sendMsg(chatId, "en".equals(lang) ? 
+                        "❌ Custom city not found in your list." :
+                        "❌ Пользовательский город не найден в вашем списке.");
+                }
+                return;
+            }
+            if (state.startsWith(STATE_WAITING_CHANGE_UTC_CUSTOM + ":")) {
+                String cityName = state.substring((STATE_WAITING_CHANGE_UTC_CUSTOM + ":").length());
+                CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
+                if (customCity != null) {
+                    String newTz = text.trim();
+                    if (!newTz.matches("[+-]\\d{1,2}")) {
+                        sendMsg(chatId, "en".equals(lang) ?
+                            "❌ Invalid timezone format. Use +07 or -11" :
+                            "❌ Неверный формат часового пояса. Используйте +07 или -11");
+                        userStates.remove(chatId);
+                        return;
+                    }
+                    
+                    int hours = Integer.parseInt(newTz.replace("+", "").replace("-", ""));
+                    if (newTz.startsWith("-")) hours = -hours;
+                    if (hours > 12 || hours < -12) {
+                        sendMsg(chatId, "en".equals(lang) ?
+                            "❌ Timezone must be between -12 and +12" :
+                            "❌ Часовой пояс должен быть между -12 и +12");
+                        userStates.remove(chatId);
+                        return;
+                    }
+                    
+                    customCity.setTimezone(newTz);
+                    customCityService.updateCustomCity(customCity);
+                    String displayName = customCity.getName().substring(0, 1).toUpperCase() + customCity.getName().substring(1);
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "✅ Timezone for <b>" + displayName + "</b> updated to UTC" + newTz :
+                        "✅ Часовой пояс для <b>" + displayName + "</b> обновлён на UTC" + newTz);
+                }
+                userStates.remove(chatId);
+                return;
+            }
+
+            if (state.equals(STATE_WAITING_HOME_CITY)) {
+                userStates.remove(chatId);
+                String cityName = text.toLowerCase().trim();
+                City city = cityService.findCity(cityName);
+                if (city != null) {
+                    userService.setHomeCity(chatId, cityName);
+                    String displayName = cityService.getCityNameLocalized(city, lang);
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "✅ Home city set to <b>" + displayName + "</b>" :
+                        "✅ Домашний город установлен: <b>" + displayName + "</b>");
+                } else {
+                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                    List<InlineKeyboardButton> row = new ArrayList<>();
+                    row.add(createInlineButton("en".equals(lang) ? "❌ Cancel" : "❌ Отмена", "cancel_home_city"));
+                    rows.add(row);
+                    markup.setKeyboard(rows);
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ This city is not in the database. Please enter another city." :
+                        "❌ Данного города нет в базе данных. Введите другой город.", markup);
+                    userStates.put(chatId, STATE_WAITING_HOME_CITY);
+                }
+                return;
+            }
+
+            if (state.startsWith(STATE_WAITING_CHANGE_NAME_CUSTOM + ":")) {
+                String cityName = state.substring((STATE_WAITING_CHANGE_NAME_CUSTOM + ":").length());
+                CustomCity customCity = customCityService.findCustomCityByNameAndUserId(chatId, cityName);
+                if (customCity != null) {
+                    String newName = text.toLowerCase().trim();
+                    String oldName = customCity.getName();
+                    customCity.setName(newName);
+                    customCityService.updateCustomCity(customCity);
+                    String displayName = newName.substring(0, 1).toUpperCase() + newName.substring(1);
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "✅ City renamed from <b>" + oldName + "</b> to <b>" + displayName + "</b>" :
+                        "✅ Город переименован из <b>" + oldName + "</b> в <b>" + displayName + "</b>");
+                }
+                userStates.remove(chatId);
+                return;
+            }
+
+            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ГОРОДА =====
+            if (state.equals(STATE_WAITING_REMINDER_CITY)) {
+                String cityName = text.toLowerCase().trim();
+                City city = cityService.findCity(cityName);
+                if (city != null) {
+                    userStates.put(chatId, "REMINDER_WAIT_TIME:" + cityName);
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "⏰ Step 2: Enter the time (e.g., 15:00):" :
+                        "⏰ Шаг 2: Введите время (например, 15:00):");
+                } else {
+                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                    List<InlineKeyboardButton> row = new ArrayList<>();
+                    row.add(createInlineButton("en".equals(lang) ? "❌ Cancel" : "❌ Отмена", "cancel_reminder"));
+                    rows.add(row);
+                    markup.setKeyboard(rows);
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ City not found. Try again or cancel." :
+                        "❌ Город не найден. Попробуйте снова или отмените.", markup);
+                }
+                return;
+            }
+
+            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ВРЕМЕНИ =====
+            if (state.startsWith("REMINDER_WAIT_TIME:")) {
+                String cityName = state.substring("REMINDER_WAIT_TIME:".length());
+                String time = text.trim();
+                
+                if (!time.matches("\\d{1,2}:\\d{2}")) {
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ Invalid time format. Use HH:MM (e.g., 15:00)." :
+                        "❌ Неверный формат времени. Используйте ЧЧ:ММ (например, 15:00).");
+                    return;
+                }
+                
+                // Добавляем ведущий ноль если нужно (9:00 -> 09:00)
+                if (time.length() == 4) {
+                    time = "0" + time;
+                }
+                
+                userStates.put(chatId, "REMINDER_WAIT_TEXT:" + cityName + ";;" + time);
+                sendMsg(chatId, "en".equals(lang) ?
+                    "⏰ Step 3: Enter the reminder text:" :
+                    "⏰ Шаг 3: Введите текст напоминалки:");
+                return;
+            }
+
+            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ТЕКСТА =====
+            if (state.startsWith("REMINDER_WAIT_TEXT:")) {
+                String data = state.substring("REMINDER_WAIT_TEXT:".length());
+                String[] parts = data.split(";;", 2);
+                String cityName = parts[0];
+                String time = parts[1];
+                String reminderText = text.trim();
+                
+                userStates.put(chatId, "REMINDER_WAIT_DAYS:" + cityName + ";;" + time + ";;" + reminderText);
+                
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                
+                if ("en".equals(lang)) {
+                    rows.add(Arrays.asList(
+                        createInlineButton("Monday", "day_mon"),
+                        createInlineButton("Tuesday", "day_tue")
+                    ));
+                    rows.add(Arrays.asList(
+                        createInlineButton("Wednesday", "day_wed"),
+                        createInlineButton("Thursday", "day_thu")
+                    ));
+                    rows.add(Arrays.asList(
+                        createInlineButton("Friday", "day_fri"),
+                        createInlineButton("Saturday", "day_sat")
+                    ));
+                    rows.add(Arrays.asList(
+                        createInlineButton("Sunday", "day_sun"),
+                        createInlineButton("✅ All Days", "day_all")
+                    ));
+                } else {
+                    rows.add(Arrays.asList(
+                        createInlineButton("Понедельник", "day_пн"),
+                        createInlineButton("Вторник", "day_вт")
+                    ));
+                    rows.add(Arrays.asList(
+                        createInlineButton("Среда", "day_ср"),
+                        createInlineButton("Четверг", "day_чт")
+                    ));
+                    rows.add(Arrays.asList(
+                        createInlineButton("Пятница", "day_пт"),
+                        createInlineButton("Суббота", "day_сб")
+                    ));
+                    rows.add(Arrays.asList(
+                        createInlineButton("Воскресенье", "day_вс"),
+                        createInlineButton("✅ Все дни", "day_all")
+                    ));
+                }
+                
+                markup.setKeyboard(rows);
+                sendMsg(chatId, "en".equals(lang) ?
+                    "⏰ Step 4: Select the days:" :
+                    "⏰ Шаг 4: Выберите дни:", markup);
+                return;
+            }
+
+            // ===== НАПОМИНАЛКА: ОЖИДАНИЕ ДНЕЙ =====
+            if (state.startsWith("REMINDER_WAIT_DAYS:")) {
+                String data = state.substring("REMINDER_WAIT_DAYS:".length());
+                String[] parts = data.split(";;", 3);
+                String cityName = parts[0];
+                String time = parts[1];
+                String reminderText = parts[2];
+                String days = text.toLowerCase().trim();
+                
+                // Валидация дней
+                if (!ReminderScheduler.validateDays(days)) {
+                    sendMsg(chatId, "en".equals(lang) ?
+                        "❌ Invalid days format. Use: mon,tue,wed or пн,вт,ср or all" :
+                        "❌ Неверный формат дней. Используйте: пн,вт,ср или mon,tue,wed или все");
+                    return;
+                }
+                
+                reminderService.createReminder(chatId, cityName, time, reminderText, days);
+                userStates.remove(chatId);
+                
+                sendMsg(chatId, "en".equals(lang) ?
+                    "✅ Reminder created!\n\n🌍 City: " + cityName + "\n🕐 Time: " + time + "\n📝 Text: " + reminderText + "\n📅 Days: " + days + "\n\nYou will receive a notification when it's time." :
+                    "✅ Напоминалка создана!\n\n🌍 Город: " + cityName + "\n🕐 Время: " + time + "\n📝 Текст: " + reminderText + "\n📅 Дни: " + days + "\n\nВы получите уведомление, когда придёт время.");
+                return;
+            }
+
+            if (state.equals(STATE_WAITING_CITY)) {
+                userStates.remove(chatId);
+        
+        // ========== КОМАНДА /about ==========
+        if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
+            String aboutText = "en".equals(lang) ?
+                "🤖 <b>About WorldAtlas Bot</b>\n\n" +
+                "👨‍💻 <b>Creator:</b> @BobrArbuz\n\n" +
+                "🌐 <b>Data Sources:</b>\n" +
+                "• 🌤️ Weather & Geocoding: OpenWeatherMap API\n" +
+                "• 🕐 Timezones: TimeAPI.io / Java Timezone DB\n" +
+                "• 💬 Interface: Telegram Bot API\n\n" +
+                "⚙️ <b>Tech Stack:</b>\n" +
+                "• Java 21 + Spring Boot\n" +
+                "• PostgreSQL (Neon)\n" +
+                "• Hosting: Render\n\n" +
+                "💡 Questions or suggestions? Use /support!" :
+                "🤖 <b>О боте WorldAtlas</b>\n\n" +
+                "👨‍💻 <b>Создатель:</b> @BobrArbuz\n\n" +
+                "🌐 <b>Источники данных:</b>\n" +
+                "• 🌤️ Погода и поиск городов: OpenWeatherMap API\n" +
+                "• 🕐 Часовые пояса: TimeAPI.io / Java Timezone DB\n" +
+                "• 💬 Интерфейс: Telegram Bot API\n\n" +
+                "⚙️ <b>Технологии:</b>\n" +
+                "• Java 21 + Spring Boot\n" +
+                "• PostgreSQL (Neon)\n" +
+                "• Хостинг: Render\n\n" +
+                "💡 Есть вопросы или предложения? Пишите /support!";
+            
+            sendMsg(chatId, aboutText);
+            return;
+        }
+
         City city = cityService.findCity(text);
                 if (city != null) {
                     sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
@@ -2020,7 +2094,7 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
                 }
                 return; // ВАЖНО: прерываем выполнение, чтобы не дойти до общего обработчика
             } else if (state.equals(STATE_WAITING_REMOVE)) {
-                userStates.invalidate(chatId);
+                userStates.remove(chatId);
                 String cityToRemove = text.toLowerCase().trim();
                 
                 // Проверяем обычные города
@@ -2052,7 +2126,7 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
                         "❌ Город не найден в избранном.");
                 }
             } else if (state.equals(STATE_WAITING_BROADCAST)) {
-                userStates.invalidate(chatId);
+                userStates.remove(chatId);
                 if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.OWNER) sendBroadcast(text, lang);
             }
             return;
@@ -2204,16 +2278,16 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
                 "🏠 Введите название вашего домашнего города:");
             return;
         } else if (data.equals("cancel_home_city")) {
-            userStates.invalidate(chatId);
+            userStates.remove(chatId);
             editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Action cancelled." : "✅ Действие отменено.");
         } else if (data.equals("delete_reminder_btn")) {
             reminderService.deleteReminder(chatId);
             editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Reminder deleted." : "✅ Напоминалка удалена.");
         } else if (data.equals("cancel_reminder")) {
-            userStates.invalidate(chatId);
+            userStates.remove(chatId);
             editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Reminder creation cancelled." : "✅ Создание напоминалки отменено.");
         } else if (data.startsWith("day_")) {
-            String state = userStates.getIfPresent(chatId);
+            String state = userStates.get(chatId);
             if (state != null && state.startsWith("REMINDER_WAIT_DAYS:")) {
                 String daysData = state.substring("REMINDER_WAIT_DAYS:".length());
                 String[] parts = daysData.split(";;", 3);
@@ -2224,7 +2298,7 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
                 String day = data.substring("day_".length());
                 
                 reminderService.createReminder(chatId, cityName, time, reminderText, day);
-                userStates.invalidate(chatId);
+                userStates.remove(chatId);
                 
                 editMessageText(chatId, messageId, "en".equals(lang) ?
                     "✅ Reminder created!\n\n🌍 City: " + cityName + "\n🕐 Time: " + time + "\n📝 Text: " + reminderText + "\n📅 Days: " + day + "\n\nYou will receive a notification when it's time." :
@@ -2353,7 +2427,7 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
                 
                 if (isSubscribed) {
                     userService.setSubscribed(chatId, true);
-                    userStates.invalidate(chatId);
+                    userStates.remove(chatId);
                     editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Subscription confirmed!" : "✅ Подписка подтверждена!");
                     User updatedUser = userService.getUser(chatId);
                     sendWelcome(chatId, updatedUser.getLanguage());
