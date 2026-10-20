@@ -1957,7 +1957,38 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
 
             if (state.equals(STATE_WAITING_CITY)) {
                 userStates.remove(chatId);
-                City city = cityService.findCity(text);
+        
+        // ========== КОМАНДА /about ==========
+        if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
+            String aboutText = "en".equals(lang) ?
+                "🤖 <b>About WorldAtlas Bot</b>\n\n" +
+                "👨‍💻 <b>Creator:</b> @BobrArbuz\n\n" +
+                "🌐 <b>Data Sources:</b>\n" +
+                "• 🌤️ Weather & Geocoding: OpenWeatherMap API\n" +
+                "• 🕐 Timezones: TimeAPI.io / Java Timezone DB\n" +
+                "• 💬 Interface: Telegram Bot API\n\n" +
+                "⚙️ <b>Tech Stack:</b>\n" +
+                "• Java 21 + Spring Boot\n" +
+                "• PostgreSQL (Neon)\n" +
+                "• Hosting: Render\n\n" +
+                "💡 Questions or suggestions? Use /support!" :
+                "🤖 <b>О боте WorldAtlas</b>\n\n" +
+                "👨‍💻 <b>Создатель:</b> @BobrArbuz\n\n" +
+                "🌐 <b>Источники данных:</b>\n" +
+                "• 🌤️ Погода и поиск городов: OpenWeatherMap API\n" +
+                "• 🕐 Часовые пояса: TimeAPI.io / Java Timezone DB\n" +
+                "• 💬 Интерфейс: Telegram Bot API\n\n" +
+                "⚙️ <b>Технологии:</b>\n" +
+                "• Java 21 + Spring Boot\n" +
+                "• PostgreSQL (Neon)\n" +
+                "• Хостинг: Render\n\n" +
+                "💡 Есть вопросы или предложения? Пишите /support!";
+            
+            sendMsg(chatId, aboutText);
+            return;
+        }
+
+        City city = cityService.findCity(text);
                 if (city != null) {
                     sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));
                 } else {
