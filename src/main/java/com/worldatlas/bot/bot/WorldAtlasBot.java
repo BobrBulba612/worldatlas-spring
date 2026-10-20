@@ -314,746 +314,6 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             System.out.println("⚠️ Ошибка проверки подписки: " + e.getMessage());
         }
 
-        if (text.equals("/start")) {
-            // Проверяем, новый ли это пользователь
-            User newUser = userService.getUser(chatId);
-            boolean isNewUser = newUser == null || newUser.getLanguage() == null || newUser.getLanguage().isEmpty();
-            
-            if (isNewUser) {
-                // Онбординг для новых пользователей
-                String onboarding = "en".equals(lang) ?
-                    "👋 <b>Welcome to World Time Map Bot!</b>\n\n" +
-                    "I'll help you track time anywhere in the world.\n\n" +
-                    "✨ <b>Quick start:</b>\n" +
-                    "1️⃣ Use /search_city to find any city\n" +
-                    "2️⃣ Add cities to ⭐ Favorites\n" +
-                    "3️⃣ Set ⏰ Reminders for important times\n" +
-                    "4️⃣ Create 🏙️ Custom cities with any timezone\n\n" +
-                    "💡 <b>Pro tips:</b>\n" +
-                    "• Use @WorldTimeMapBot in any chat for inline mode\n" +
-                    "• Check /mystats to see your activity\n" +
-                    "• Open 🌍 Mini App for full experience\n\n" +
-                    "🚀 Ready? Let's start with finding your city!" :
-                    "👋 <b>Добро пожаловать в World Time Map Bot!</b>\n\n" +
-                    "Я помогу вам отслеживать время в любой точке мира.\n\n" +
-                    "✨ <b>Быстрый старт:</b>\n" +
-                    "1️⃣ Используйте /search_city для поиска города\n" +
-                    "2️⃣ Добавляйте города в ⭐ Избранное\n" +
-                    "3️⃣ Устанавливайте ⏰ Напоминания на важное время\n" +
-                    "4️⃣ Создавайте 🏙️ Свои города с любым часовым поясом\n\n" +
-                    "💡 <b>Полезные советы:</b>\n" +
-                    "• Используйте @WorldTimeMapBot в любом чате для inline-режима\n" +
-                    "• Проверьте /mystats чтобы увидеть вашу активность\n" +
-                    "• Откройте 🌍 Mini App для полного опыта\n\n" +
-                    "🚀 Готовы? Начнём с поиска вашего города!";
-                
-                sendMsg(chatId, onboarding, getMainMenuKeyboard(lang));
-                return;
-            }
-            if (userService.isSubscribed(chatId)) {
-                sendWelcome(chatId, lang);
-                return;
-            }
-            
-            String text_msg = "🚀 <b>Старт!</b>\n\nДобро пожаловать в WorldAtlas Bot!\n\nДля начала работы выберите язык:";
-            
-            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-            List<InlineKeyboardButton> row1 = new ArrayList<>();
-            row1.add(createInlineButton("🇷🇺 Русский", "start_lang_ru"));
-            row1.add(createInlineButton("🇬🇧 English", "start_lang_en"));
-            rows.add(row1);
-            markup.setKeyboard(rows);
-            
-            sendMsg(chatId, text_msg, markup);
-            userStates.put(chatId, STATE_SELECTING_LANGUAGE);
-            return;
-        }
-
-        // НАСТРОЙКИ
-        if (text.equals("⚙️ Настройки") || text.equals("⚙️ Settings") || text.equals("/settings")) {
-            showSettings(chatId, lang, user);
-            return;
-        }
-
-        // НАПОМИНАЛКА
-        if (text.equals("/remind")) {
-            if (reminderService.hasReminder(chatId)) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ You already have a reminder. Use /delete_remind to delete it first." :
-                    "❌ У вас уже есть напоминалка. Сначала удалите её с помощью /delete_remind.");
-                return;
-            }
-            userStates.put(chatId, STATE_WAITING_REMINDER_CITY);
-            sendMsg(chatId, "en".equals(lang) ?
-                "⏰ <b>Create Reminder</b>\n\nStep 1: Enter the city name:" :
-                "⏰ <b>Создать напоминалку</b>\n\nШаг 1: Введите название города:");
-            return;
-        }
-
-        if (text.equals("/delete_remind")) {
-            if (reminderService.hasReminder(chatId)) {
-                reminderService.deleteReminder(chatId);
-                sendMsg(chatId, "en".equals(lang) ?
-                    "✅ Reminder deleted." :
-                    "✅ Напоминалка удалена.");
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ You don't have any reminders." :
-                    "❌ У вас нет напоминалок.");
-            }
-            return;
-        }
-
-        if (text.equals("/remind_list")) {
-            var reminderOpt = reminderService.getReminder(chatId);
-            if (reminderOpt.isPresent()) {
-                Reminder reminder = reminderOpt.get();
-                String info = "en".equals(lang) ?
-                    "⏰ <b>Your Reminder</b>\n\n" +
-                    "🌍 City: " + reminder.getCityName() + "\n" +
-                    "🕐 Time: " + reminder.getTime() + "\n" +
-                    "📝 Text: " + reminder.getText() + "\n" +
-                    "📅 Days: " + reminder.getDays() :
-                    "⏰ <b>Ваша напоминалка</b>\n\n" +
-                    "🌍 Город: " + reminder.getCityName() + "\n" +
-                    "🕐 Время: " + reminder.getTime() + "\n" +
-                    "📝 Текст: " + reminder.getText() + "\n" +
-                    "📅 Дни: " + reminder.getDays();
-
-                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-                List<InlineKeyboardButton> row1 = new ArrayList<>();
-                row1.add(createInlineButton("en".equals(lang) ? "🗑️ Delete" : "🗑️ Удалить", "delete_reminder_btn"));
-                rows.add(row1);
-                markup.setKeyboard(rows);
-                
-                sendMsg(chatId, info, markup);
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ You don't have any reminders. Use /remind to create one." :
-                    "❌ У вас нет напоминалок. Используйте /remind чтобы создать.");
-            }
-            return;
-        }
-
-        if (text.equals("/my_reminder")) {
-            var reminderOpt = reminderService.getReminder(chatId);
-            if (reminderOpt.isPresent()) {
-                Reminder reminder = reminderOpt.get();
-                String info = "en".equals(lang) ?
-                    "⏰ <b>Your Reminder</b>\n\n" +
-                    "🌍 City: " + reminder.getCityName() + "\n" +
-                    "🕐 Time: " + reminder.getTime() + "\n" +
-                    "📝 Text: " + reminder.getText() + "\n" +
-                    "📅 Days: " + reminder.getDays() :
-                    "⏰ <b>Ваша напоминалка</b>\n\n" +
-                    "🌍 Город: " + reminder.getCityName() + "\n" +
-                    "🕐 Время: " + reminder.getTime() + "\n" +
-                    "📝 Текст: " + reminder.getText() + "\n" +
-                    "📅 Дни: " + reminder.getDays();
-                sendMsg(chatId, info);
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ You don't have any reminders. Use /remind to create one." :
-                    "❌ У вас нет напоминалок. Используйте /remind чтобы создать.");
-            }
-            return;
-        }
-
-        // ДОМАШНИЙ ГОРОД
-        if (text.startsWith("/home ")) {
-            String cityName = text.substring("/home ".length()).trim().toLowerCase();
-            City city = cityService.findCity(cityName);
-            if (city != null) {
-                userService.setHomeCity(chatId, cityName);
-                String displayName = cityService.getCityNameLocalized(city, lang);
-                sendMsg(chatId, "en".equals(lang) ?
-                    "✅ Home city set to <b>" + displayName + "</b>" :
-                    "✅ Домашний город установлен: <b>" + displayName + "</b>");
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ City not found." :
-                    "❌ Город не найден.");
-            }
-            return;
-        }
-
-        if (text.equals("/home")) {
-            String homeCity = userService.getHomeCity(chatId);
-            if (homeCity != null) {
-                City city = cityService.findCity(homeCity);
-                if (city != null) {
-                    String displayName = cityService.getCityNameLocalized(city, lang);
-                    String countryName = cityService.getCountryLocalized(city, lang);
-                    java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
-                    String timePattern = "12".equals(user.getTimeFormat()) ? "hh:mm a" : "HH:mm";
-                    String timeStr = cityTime.format(java.time.format.DateTimeFormatter.ofPattern(timePattern, "en".equals(lang) ? java.util.Locale.ENGLISH : new java.util.Locale("ru")));
-                    int offsetSeconds = cityTime.getOffset().getTotalSeconds();
-                    int offsetHours = offsetSeconds / 3600;
-                    String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
-                    
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("🏠 <b>").append("en".equals(lang) ? "Your Home City" : "Ваш домашний город").append("</b>\n\n");
-                    sb.append("🌍 <b>").append(displayName).append("</b>\n");
-                    sb.append("   📍 ").append(countryName).append("\n");
-                    sb.append("   🕐 ").append(timeStr).append(" | 🌐 ").append(utcStr).append("\n\n");
-                    sb.append("en".equals(lang) ? "Use /home city to change it." : "Используйте /home город чтобы изменить.");
-                    sendMsg(chatId, sb.toString());
-                }
-            } else {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "🏠 You haven't set a home city yet.\n\nUse /home Moscow to set it." :
-                    "🏠 Вы еще не задали домашний город.\n\nИспользуйте /home Москва чтобы задать.");
-            }
-            return;
-        }
-
-        // МИРОВЫЕ ЧАСЫ
-        if (text.equals("/worldclock")) {
-            String[] worldCities = {"moscow", "london", "new york", "tokyo", "dubai", "sydney", "los angeles", "beijing"};
-            
-            StringBuilder sb = new StringBuilder();
-            sb.append("🌍 <b>").append("en".equals(lang) ? "World Clock" : "Мировые часы").append("</b>\n\n");
-            
-            for (String cityName : worldCities) {
-                City city = cityService.findCity(cityName);
-                if (city != null) {
-                    java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
-                    String timePattern = "12".equals(user.getTimeFormat()) ? "hh:mm a" : "HH:mm";
-                    String timeStr = cityTime.format(java.time.format.DateTimeFormatter.ofPattern(timePattern, "en".equals(lang) ? java.util.Locale.ENGLISH : new java.util.Locale("ru")));
-                    String displayName = cityService.getCityNameLocalized(city, lang);
-                    
-                    int offsetSeconds = cityTime.getOffset().getTotalSeconds();
-                    int offsetHours = offsetSeconds / 3600;
-                    String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
-                    
-                    sb.append("🕐 <b>").append(displayName).append("</b>: ").append(timeStr).append(" (").append(utcStr).append(")\n");
-                }
-            }
-            
-            sendMsg(chatId, sb.toString());
-            return;
-        }
-
-        // КОНВЕРТЕР ВРЕМЕНИ
-        if (text.startsWith("/convert ")) {
-            String homeCity = userService.getHomeCity(chatId);
-            if (homeCity == null) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ You haven't set a home city. Use /home city to set it." :
-                    "❌ Вы не задали домашний город. Используйте /home город чтобы задать.");
-                return;
-            }
-            
-            City city1 = cityService.findCity(homeCity);
-            if (city1 == null) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Home city not found in database." :
-                    "❌ Домашний город не найден в базе данных.");
-                return;
-            }
-            
-            String args = text.substring("/convert ".length()).trim();
-            String[] parts = args.split("\\s+");
-            
-            if (parts.length < 2) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Format: /convert Tokyo 15:00" :
-                    "❌ Формат: /convert Токио 15:00");
-                return;
-            }
-            
-            // Последний элемент - время
-            String timeStr = parts[parts.length - 1];
-            if (!timeStr.matches("\\d{1,2}:\\d{2}")) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Invalid time format. Use HH:MM (e.g., 15:00)." :
-                    "❌ Неверный формат времени. Используйте ЧЧ:ММ (например, 15:00).");
-                return;
-            }
-            
-            // Собираем строку города (все кроме последнего элемента)
-            StringBuilder cityBuilder = new StringBuilder();
-            for (int i = 0; i < parts.length - 1; i++) {
-                if (i > 0) cityBuilder.append(" ");
-                cityBuilder.append(parts[i]);
-            }
-            String cityStr = cityBuilder.toString().toLowerCase().trim();
-            
-            City city2 = cityService.findCity(cityStr);
-            if (city2 == null) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ City not found." :
-                    "❌ Город не найден.");
-                return;
-            }
-            
-            // Конвертируем время
-            java.time.ZoneId zone1 = java.time.ZoneId.of(city1.getTimezone());
-            java.time.ZoneId zone2 = java.time.ZoneId.of(city2.getTimezone());
-            
-            String[] timeParts = timeStr.split(":");
-            int hours = Integer.parseInt(timeParts[0]);
-            int minutes = Integer.parseInt(timeParts[1]);
-            
-            java.time.ZonedDateTime timeInCity1 = java.time.ZonedDateTime.of(java.time.LocalDate.now(), java.time.LocalTime.of(hours, minutes), zone1);
-            java.time.ZonedDateTime timeInCity2 = timeInCity1.withZoneSameInstant(zone2);
-            
-            String timePattern = "12".equals(user.getTimeFormat()) ? "hh:mm a" : "HH:mm";
-            String convertedTimeStr = timeInCity2.format(java.time.format.DateTimeFormatter.ofPattern(timePattern, "en".equals(lang) ? java.util.Locale.ENGLISH : new java.util.Locale("ru")));
-            
-            String displayName1 = cityService.getCityNameLocalized(city1, lang);
-            String displayName2 = cityService.getCityNameLocalized(city2, lang);
-            
-            sendMsg(chatId, "en".equals(lang) ?
-                "🕐 <b>" + timeStr + "</b> in " + displayName1 + " = <b>" + convertedTimeStr + "</b> in " + displayName2 :
-                "🕐 <b>" + timeStr + "</b> в " + displayName1 + " = <b>" + convertedTimeStr + "</b> в " + displayName2);
-            return;
-        }
-
-        // РАЗНИЦА ВО ВРЕМЕНИ
-        if (text.startsWith("/diff ")) {
-            String args = text.substring("/diff ".length()).trim().toLowerCase();
-            
-            City city1 = null;
-            City city2 = null;
-            
-            for (int i = 1; i < args.length(); i++) {
-                String part1 = args.substring(0, i).trim();
-                String part2 = args.substring(i).trim();
-                City c1 = cityService.findCity(part1);
-                if (c1 != null) {
-                    City c2 = cityService.findCity(part2);
-                    if (c2 != null) {
-                        city1 = c1;
-                        city2 = c2;
-                        break;
-                    }
-                }
-            }
-            
-            if (city1 == null || city2 == null) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Cities not found. Format: /diff Moscow New York" :
-                    "❌ Города не найдены. Формат: /diff Москва Нью-Йорк");
-                return;
-            }
-            
-            java.time.ZoneId zone1 = java.time.ZoneId.of(city1.getTimezone());
-            java.time.ZoneId zone2 = java.time.ZoneId.of(city2.getTimezone());
-            
-            java.time.ZonedDateTime now1 = java.time.ZonedDateTime.now(zone1);
-            int offset1 = zone1.getRules().getOffset(now1.toInstant()).getTotalSeconds();
-            int offset2 = zone2.getRules().getOffset(now1.toInstant()).getTotalSeconds();
-            int diffHours = (offset2 - offset1) / 3600;
-            
-            String displayName1 = cityService.getCityNameLocalized(city1, lang);
-            String displayName2 = cityService.getCityNameLocalized(city2, lang);
-            
-            String diffStr = diffHours >= 0 ? "+" + diffHours : String.valueOf(diffHours);
-            
-            sendMsg(chatId, "en".equals(lang) ?
-                "🕐 Time difference between <b>" + displayName1 + "</b> and <b>" + displayName2 + "</b>: " + diffStr + " hours" :
-                "🕐 Разница между <b>" + displayName1 + "</b> и <b>" + displayName2 + "</b>: " + diffStr + " часов");
-            return;
-        }
-
-        if (text.equals("/help") || text.equals("📖 Помощь") || text.equals("📖 Help")) {
-            String helpText = "en".equals(lang) ?
-                "📖 <b>WorldAtlas Bot Help</b>\n\n" +
-                "<b>Main commands:</b>\n" +
-                "• /start - Restart bot\n" +
-                "• /search_city - Find a city\n" +
-                "• /view_favorites - Your favorite cities\n" +
-                "• /download - Download the app\n" +
-                "• /lang - Change language\n" +
-                "• /help - This help message\n" +
-                "• /cancel - Cancel current action\n" +
-                "• /worldclock - World clock\n" +
-                "• /home city - Set home city\n\n" +
-                "<b>Custom cities:</b>\n" +
-                "• /create_custom - Create custom city\n" +
-                "• /list_custom - List your custom cities\n" +
-                "• /delete_custom - Delete custom city\n" +
-                "• /change_UTC_custom name - Change timezone\n" +
-                "• /change_name_custom name - Rename city\n\n" +
-                "<b>Other:</b>\n" +
-                "• /convert city1 city2 time - Time converter\n" +
-                "• /diff city1 city2 - Time difference\n" +
-                "• /remind - Create reminder\n\n" +
-                "<b>Inline mode:</b>\n" +
-                "Use @" + botUsername + " in any chat to search for cities" :
-                "📖 <b>Помощь по боту WorldAtlas</b>\n\n" +
-                "<b>Основные команды:</b>\n" +
-                "• /start - Запустить бота\n" +
-                "• /search_city - Найти город\n" +
-                "• /view_favorites - Ваши избранные города\n" +
-                "• /download - Скачать приложение\n" +
-                "• /lang - Сменить язык\n" +
-                "• /help - Эта справка\n" +
-                "• /worldclock - Мировые часы\n" +
-                "• /cancel - Отменить действие\n" +
-                "• /home город - Задать домашний город\n\n" +
-                "<b>Пользовательские города:</b>\n" +
-                "• /create_custom - создать пользовательский город\n" +
-                "• /list_custom - список ваших пользовательских городов\n" +
-                "• /delete_custom - удалить пользовательский город\n" +
-                "• /change_UTC_custom имя - Изменить часовой пояс\n" +
-                "• /change_name_custom имя - Переименовать город\n\n" +
-                "<b>Дополнительно:</b>\n" +
-                "• /convert город1 город2 время - Конвертер времени\n" +
-                "• /diff город1 город2 - Разница во времени\n" +
-                "• /remind - создать напоминалку\n\n" +
-                "<b>Inline режим:</b>\n" +
-                "Используйте @" + botUsername + " в любом чате для поиска городов";
-            sendMsg(chatId, helpText);
-            return;
-        }
-
-        if (text.equals("/adminhelp")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
-                return;
-            }
-            StringBuilder adminHelp = new StringBuilder();
-            String roleLabel = user.getRole() == User.Role.OWNER ? "💎 OWNER" : (user.getRole() == User.Role.ADMIN ? "👑 ADMIN" : "🛡️ MODERATOR");
-            String roleLabelRu = user.getRole() == User.Role.OWNER ? "💎 ВЛАДЕЛЕЦ" : (user.getRole() == User.Role.ADMIN ? "👑 АДМИН" : "🛡️ МОДЕРАТОР");
-            adminHelp.append("🛡️ <b>").append("en".equals(lang) ? "Full Control Panel" : "Полная панель управления").append("</b>\n");
-            adminHelp.append("en".equals(lang) ? "Your rank: " : "Твой ранг: ").append("<b>").append("en".equals(lang) ? roleLabel : roleLabelRu).append("</b>\n\n");
-            
-            if ("en".equals(lang)) {
-                adminHelp.append("👤 <b>Basic commands (all staff):</b>\n");
-                adminHelp.append("• /users - List of all users with clickable profiles\n");
-                adminHelp.append("• /ban @username - Ban a user\n");
-                adminHelp.append("• /unban @username - Unban a user\n\n");
-                
-                if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.OWNER) {
-                    adminHelp.append("👑 <b>Admin commands:</b>\n");
-                    adminHelp.append("• /makeadmin @username - Promote to admin (requires code confirmation)\n");
-                    adminHelp.append("• CONFIRM 1234 - Confirm promotion with code\n");
-                    adminHelp.append("• /makemod @username - Promote to moderator\n");
-                    adminHelp.append("• /kick mod @username [reason] - Demote moderator (with reason)\n");
-                    adminHelp.append("• /broadcast or /announce - Send message to all users\n\n");
-                }
-                
-                if (user.getRole() == User.Role.OWNER) {
-                    adminHelp.append("💎 <b>Owner commands (exclusive):</b>\n");
-                    adminHelp.append("• /kick admin @username [reason] - Demote admin (with reason)\n");
-                    adminHelp.append("• /makeowner @username [secret_key] - Promote to owner\n");
-                    adminHelp.append("• /demoteowner @username - Demote owner to admin\n");
-                    adminHelp.append("• /iamadmin - Secret command for bot creator\n\n");
-                    adminHelp.append("🔐 <b>Secret key for /makeowner:</b>\n");
-                    adminHelp.append("`" + ownerSecretKey + "`");
-                }
-            } else {
-                adminHelp.append("👤 <b>Базовые команды (весь персонал):</b>\n");
-                adminHelp.append("• /users - Список всех пользователей с кликабельными профилями\n");
-                adminHelp.append("• /ban @username - Заблокировать пользователя\n");
-                adminHelp.append("• /unban @username - Разблокировать пользователя\n\n");
-                
-                if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.OWNER) {
-                    adminHelp.append("👑 <b>Команды админа:</b>\n");
-                    adminHelp.append("• /makeadmin @username - Выдать админку (требуется подтверждение кодом)\n");
-                    adminHelp.append("• CONFIRM 1234 - Подтвердить выдачу админки кодом\n");
-                    adminHelp.append("• /makemod @username - Выдать модератора\n");
-                    adminHelp.append("• /kick mod @username [причина] - Снять модератора (с причиной)\n");
-                    adminHelp.append("• /broadcast или /announce - Рассылка сообщения всем пользователям\n\n");
-                }
-                
-                if (user.getRole() == User.Role.OWNER) {
-                    adminHelp.append("💎 <b>Команды владельца (эксклюзивно):</b>\n");
-                    adminHelp.append("• /kick admin @username [причина] - Снять админа (с причиной)\n");
-                    adminHelp.append("• /makeowner @username [секретный_ключ] - Выдать роль владельца\n");
-                    adminHelp.append("• /demoteowner @username - Понизить владельца до админа\n");
-                    adminHelp.append("• /iamadmin - Секретная команда создателя бота\n\n");
-                    adminHelp.append("🔐 <b>Секретный ключ для /makeowner:</b>\n");
-                    adminHelp.append("`" + ownerSecretKey + "`");
-                }
-            }
-            try {
-                sendMsg(chatId, adminHelp.toString());
-            } catch (Exception e) {
-                log.error("Admin help error: {}", e.getMessage());
-                sendMsg(chatId, "❌ Ошибка отправки справки админа");
-            }
-            return;
-        }
-
-
-        // РАССЫЛКА ВСЕМ ПОЛЬЗОВАТЕЛЯМ (только владелец)
-        if (text.startsWith("/broadcast ")) {
-            if (user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Only the owner can use this command." :
-                    "❌ Только владелец может использовать эту команду.");
-                return;
-            }
-            
-            String broadcastMessage = text.substring("/broadcast ".length()).trim();
-            if (broadcastMessage.isEmpty()) {
-                sendMsg(chatId, "en".equals(lang) ?
-                    "❌ Usage: /broadcast Your message here" :
-                    "❌ Использование: /broadcast Ваше сообщение");
-                return;
-            }
-            
-            sendMsg(chatId, "en".equals(lang) ?
-                "📢 Starting broadcast to all users..." :
-                "📢 Начинаю рассылку всем пользователям...");
-            
-            int sent = 0;
-            int failed = 0;
-            
-            List<User> allUsers = userService.getAllUsers();
-            for (User u : allUsers) {
-                try {
-                    SendMessage msg = new SendMessage();
-                    msg.setChatId(String.valueOf(u.getChatId()));
-                    msg.setText(broadcastMessage);
-                    msg.setParseMode("HTML");
-                    execute(msg);
-                    sent++;
-                    Thread.sleep(50);
-                } catch (Exception e) {
-                    failed++;
-                    System.out.println("❌ Ошибка отправки пользователю " + u.getChatId() + ": " + e.getMessage());
-                }
-            }
-            
-            sendMsg(chatId, "en".equals(lang) ?
-                "✅ Broadcast completed!\n\n📤 Sent: " + sent + "\n❌ Failed: " + failed :
-                "✅ Рассылка завершена!\n\n📤 Отправлено: " + sent + "\n❌ Ошибок: " + failed);
-            return;
-        }
-
-        if (text.equals("/iamadmin")) {
-            String u = user.getUsername();
-            if ("BobrArbuz".equalsIgnoreCase(u) || "ArbuznyBober".equalsIgnoreCase(u)) {
-                userService.setRole(chatId, User.Role.OWNER);
-                sendMsg(chatId, "💎 Вы назначены ВЛАДЕЛЬЦЕМ бота!");
-                notifyAdmin("💎 OWNER ASSIGNED\nTo: @" + u + " (ID: " + chatId + ")");
-            } else {
-                sendMsg(chatId, "❌ Эта команда только для создателя бота.");
-            }
-            return;
-        }
-
-        if (text.startsWith("/makeowner ")) {
-            if (user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Только владелец может выдавать эту роль");
-                notifyAdmin("⚠️ ПОПЫТКА /makeowner\nBy: @" + user.getUsername() + " (ID: " + chatId + ")");
-                return;
-            }
-            String[] parts = text.split(" ", 3);
-            if (parts.length < 3 || !parts[2].equals(ownerSecretKey)) {
-                sendMsg(chatId, "❌ Неверный секретный ключ");
-                notifyAdmin("🚨 НЕВЕРНЫЙ КЛЮЧ OWNER\nBy: @" + user.getUsername());
-                return;
-            }
-            String targetUsername = parts[1].replace("@", "");
-            User target = userService.findByUsername(targetUsername);
-            if (target != null) {
-                userService.setRole(target.getChatId(), User.Role.OWNER);
-                sendMsg(chatId, "💎 @" + targetUsername + " теперь ВЛАДЕЛЕЦ!");
-                notifyAdmin("💎 MAKE OWNER\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
-            } else {
-                sendMsg(chatId, "❌ Пользователь не найден");
-            }
-            return;
-        }
-
-        if (text.startsWith("/demoteowner ")) {
-            if (user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Только владелец может использовать эту команду");
-                return;
-            }
-            String targetUsername = text.substring(13).trim().replace("@", "");
-            User target = userService.findByUsername(targetUsername);
-            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
-            if (target.getChatId().equals(chatId)) { sendMsg(chatId, "❌ Нельзя снять самого себя"); return; }
-            if (target.getRole() != User.Role.OWNER) { sendMsg(chatId, "❌ Этот пользователь не владелец"); return; }
-            userService.setRole(target.getChatId(), User.Role.ADMIN);
-            sendMsg(chatId, "✅ @" + targetUsername + " понижен до администратора");
-            notifyAdmin("⬇️ DEMOTE OWNER\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
-            return;
-        }
-
-        if (text.startsWith("/kick mod ")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Только для админов и владельца");
-                return;
-            }
-            String afterCmd = text.substring("/kick mod ".length()).trim();
-            String[] parts = afterCmd.split("\\s+", 2);
-            String targetUsername = parts[0].replace("@", "");
-            String reason = parts.length > 1 ? parts[1] : "не указана";
-            
-            User target = userService.findByUsername(targetUsername);
-            if (target == null) {
-                sendMsg(chatId, "❌ Пользователь не найден");
-                return;
-            }
-            if (target.getRole() != User.Role.MODERATOR) {
-                sendMsg(chatId, "❌ Этот пользователь не является модератором");
-                return;
-            }
-            userService.setRole(target.getChatId(), User.Role.USER);
-            sendMsg(chatId, "✅ @" + targetUsername + " лишен прав модератора");
-            
-            String demoteMsg = "⚠️ <b>Вы были сняты с должности МОДЕРАТОР</b>\n\n" +
-                "👤 Снял: @" + user.getUsername() + "\n" +
-                "📝 Причина: " + reason;
-            sendMsg(target.getChatId(), demoteMsg);
-            
-            notifyAdmin("🛡️ KICK MOD\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername + "\nReason: " + reason);
-            return;
-        }
-
-        if (text.startsWith("/kick admin ")) {
-            if (user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Только владелец может снимать админов");
-                return;
-            }
-            String afterCmd = text.substring("/kick admin ".length()).trim();
-            String[] parts = afterCmd.split("\\s+", 2);
-            String targetUsername = parts[0].replace("@", "");
-            String reason = parts.length > 1 ? parts[1] : "не указана";
-            
-            User target = userService.findByUsername(targetUsername);
-            if (target == null) {
-                sendMsg(chatId, "❌ Пользователь не найден");
-                return;
-            }
-            if (target.getRole() != User.Role.ADMIN) {
-                sendMsg(chatId, "❌ Этот пользователь не является администратором");
-                return;
-            }
-            userService.setRole(target.getChatId(), User.Role.USER);
-            sendMsg(chatId, "✅ @" + targetUsername + " лишен прав админа");
-            
-            String demoteMsg = "⚠️ <b>Вы были сняты с должности АДМИНИСТРАТОР</b>\n\n" +
-                "👤 Снял: @" + user.getUsername() + "\n" +
-                "📝 Причина: " + reason;
-            sendMsg(target.getChatId(), demoteMsg);
-            
-            notifyAdmin("👢 KICK ADMIN\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername + "\nReason: " + reason);
-            return;
-        }
-
-        if (text.startsWith("/makeadmin ")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Только для администраторов и владельца");
-                return;
-            }
-            String targetUsername = text.substring(11).trim().replace("@", "");
-            User target = userService.findByUsername(targetUsername);
-            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
-            if (target.getRole() == User.Role.OWNER || target.getRole() == User.Role.ADMIN) {
-                sendMsg(chatId, "❌ Этот пользователь уже имеет высокий ранг");
-                return;
-            }
-            String code = String.format("%04d", new Random().nextInt(10000));
-            userStates.put(chatId, "CONFIRM_ADMIN:" + target.getChatId() + ":" + code);
-            sendMsg(chatId, "⚠️ <b>Подтверждение выдачи админки</b>\n\nЦель: @" + targetUsername + "\n\nЧтобы подтвердить, напишите:\n<code>CONFIRM " + code + "</code>\n\nДля отмены: /cancel");
-            return;
-        }
-
-        if (text.startsWith("CONFIRM ")) {
-            String state = userStates.getIfPresent(chatId);
-            if (state != null && state.startsWith("CONFIRM_ADMIN:")) {
-                String[] parts = state.split(":");
-                if (parts[2].equals(text.substring(8).trim())) {
-                    Long targetChatId = Long.parseLong(parts[1]);
-                    userService.setRole(targetChatId, User.Role.ADMIN);
-                    User target = userService.getUser(targetChatId);
-                    userStates.invalidate(chatId);
-                    sendMsg(chatId, "✅ @" + target.getUsername() + " теперь АДМИНИСТРАТОР");
-                    notifyAdmin("👑 MAKE ADMIN\nBy: @" + user.getUsername() + "\nTarget: @" + target.getUsername());
-                } else {
-                    sendMsg(chatId, "❌ Неверный код подтверждения");
-                }
-                return;
-            }
-        }
-
-        if (text.startsWith("/makemod ")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Только для администраторов и владельца");
-                return;
-            }
-            String targetUsername = text.substring(9).trim().replace("@", "");
-            User target = userService.findByUsername(targetUsername);
-            if (target != null) {
-                userService.setRole(target.getChatId(), User.Role.MODERATOR);
-                sendMsg(chatId, "✅ @" + targetUsername + " теперь МОДЕРАТОР");
-                notifyAdmin("🛡️ MAKE MOD\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
-            } else {
-                sendMsg(chatId, "❌ Пользователь не найден");
-            }
-            return;
-        }
-
-        if (text.equals("/users")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
-                return;
-            }
-            List<User> users = userService.getAllUsers();
-            StringBuilder sb = new StringBuilder("👥 <b>Users List</b> (Total: " + users.size() + ")\n\n");
-            for (User u : users) {
-                String displayName = (u.getUsername() != null && !u.getUsername().isEmpty()) ? "@" + u.getUsername() : u.getFirstName();
-                String roleIcon = u.getRole() == User.Role.OWNER ? "💎" : (u.getRole() == User.Role.ADMIN ? "👑" : (u.getRole() == User.Role.MODERATOR ? "🛡️" : "👤"));
-                sb.append("• <a href=\"tg://user?id=").append(u.getChatId()).append("\">").append(displayName).append("</a> (ID: ").append(u.getChatId()).append(") ").append(roleIcon).append(u.isBanned() ? " 🚫" : "").append("\n");
-            }
-            sendMsg(chatId, sb.toString());
-            return;
-        }
-
-        if (text.startsWith("/ban ")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
-                return;
-            }
-            String targetUsername = text.substring(5).trim().replace("@", "");
-            User target = userService.findByUsername(targetUsername);
-            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
-            if (target.getRole() == User.Role.OWNER || (user.getRole() != User.Role.OWNER && target.getRole() == User.Role.ADMIN)) {
-                sendMsg(chatId, "❌ Нельзя заблокировать пользователя с равным или высшим рангом");
-                return;
-            }
-            userService.setBanned(target.getChatId(), true);
-            sendMsg(chatId, "✅ Пользователь @" + targetUsername + " заблокирован");
-            notifyAdmin("🔨 BAN\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
-            return;
-        }
-
-        if (text.startsWith("/unban ")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
-                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
-                return;
-            }
-            String targetUsername = text.substring(7).trim().replace("@", "");
-            User target = userService.findByUsername(targetUsername);
-            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
-            userService.setBanned(target.getChatId(), false);
-            sendMsg(chatId, "✅ Пользователь @" + targetUsername + " разблокирован");
-            notifyAdmin("🔓 UNBAN\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
-            return;
-        }
-
-        if (text.equals("/download") || text.equals("📥 Скачать") || text.equals("📥 Download")) { showDownloadMenu(chatId, lang); return; }
-        if (text.equals("/lang") || text.equals("🌐 Язык") || text.equals("🌐 Language")) {
-            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-            List<InlineKeyboardButton> row = new ArrayList<>();
-            row.add(createInlineButton("🇷🇺 Русский", "lang_ru"));
-            row.add(createInlineButton("🇬🇧 English", "lang_en"));
-            rows.add(row);
-            markup.setKeyboard(rows);
-            sendMsg(chatId, "🌍 Выберите язык / Choose language:", markup);
-            return;
-        }
         // ========== КОМАНДА /about ==========
         
         // ========== ТЕСТ SENTRY ==========
@@ -2011,6 +1271,747 @@ if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О бо
             return;
         }
 
+        
+        if (text.equals("/start")) {
+            // Проверяем, новый ли это пользователь
+            User newUser = userService.getUser(chatId);
+            boolean isNewUser = newUser == null || newUser.getLanguage() == null || newUser.getLanguage().isEmpty();
+            
+            if (isNewUser) {
+                // Онбординг для новых пользователей
+                String onboarding = "en".equals(lang) ?
+                    "👋 <b>Welcome to World Time Map Bot!</b>\n\n" +
+                    "I'll help you track time anywhere in the world.\n\n" +
+                    "✨ <b>Quick start:</b>\n" +
+                    "1️⃣ Use /search_city to find any city\n" +
+                    "2️⃣ Add cities to ⭐ Favorites\n" +
+                    "3️⃣ Set ⏰ Reminders for important times\n" +
+                    "4️⃣ Create 🏙️ Custom cities with any timezone\n\n" +
+                    "💡 <b>Pro tips:</b>\n" +
+                    "• Use @WorldTimeMapBot in any chat for inline mode\n" +
+                    "• Check /mystats to see your activity\n" +
+                    "• Open 🌍 Mini App for full experience\n\n" +
+                    "🚀 Ready? Let's start with finding your city!" :
+                    "👋 <b>Добро пожаловать в World Time Map Bot!</b>\n\n" +
+                    "Я помогу вам отслеживать время в любой точке мира.\n\n" +
+                    "✨ <b>Быстрый старт:</b>\n" +
+                    "1️⃣ Используйте /search_city для поиска города\n" +
+                    "2️⃣ Добавляйте города в ⭐ Избранное\n" +
+                    "3️⃣ Устанавливайте ⏰ Напоминания на важное время\n" +
+                    "4️⃣ Создавайте 🏙️ Свои города с любым часовым поясом\n\n" +
+                    "💡 <b>Полезные советы:</b>\n" +
+                    "• Используйте @WorldTimeMapBot в любом чате для inline-режима\n" +
+                    "• Проверьте /mystats чтобы увидеть вашу активность\n" +
+                    "• Откройте 🌍 Mini App для полного опыта\n\n" +
+                    "🚀 Готовы? Начнём с поиска вашего города!";
+                
+                sendMsg(chatId, onboarding, getMainMenuKeyboard(lang));
+                return;
+            }
+            if (userService.isSubscribed(chatId)) {
+                sendWelcome(chatId, lang);
+                return;
+            }
+            
+            String text_msg = "🚀 <b>Старт!</b>\n\nДобро пожаловать в WorldAtlas Bot!\n\nДля начала работы выберите язык:";
+            
+            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+            List<InlineKeyboardButton> row1 = new ArrayList<>();
+            row1.add(createInlineButton("🇷🇺 Русский", "start_lang_ru"));
+            row1.add(createInlineButton("🇬🇧 English", "start_lang_en"));
+            rows.add(row1);
+            markup.setKeyboard(rows);
+            
+            sendMsg(chatId, text_msg, markup);
+            userStates.put(chatId, STATE_SELECTING_LANGUAGE);
+            return;
+        }
+
+        // НАСТРОЙКИ
+        if (text.equals("⚙️ Настройки") || text.equals("⚙️ Settings") || text.equals("/settings")) {
+            showSettings(chatId, lang, user);
+            return;
+        }
+
+        // НАПОМИНАЛКА
+        if (text.equals("/remind")) {
+            if (reminderService.hasReminder(chatId)) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ You already have a reminder. Use /delete_remind to delete it first." :
+                    "❌ У вас уже есть напоминалка. Сначала удалите её с помощью /delete_remind.");
+                return;
+            }
+            userStates.put(chatId, STATE_WAITING_REMINDER_CITY);
+            sendMsg(chatId, "en".equals(lang) ?
+                "⏰ <b>Create Reminder</b>\n\nStep 1: Enter the city name:" :
+                "⏰ <b>Создать напоминалку</b>\n\nШаг 1: Введите название города:");
+            return;
+        }
+
+        if (text.equals("/delete_remind")) {
+            if (reminderService.hasReminder(chatId)) {
+                reminderService.deleteReminder(chatId);
+                sendMsg(chatId, "en".equals(lang) ?
+                    "✅ Reminder deleted." :
+                    "✅ Напоминалка удалена.");
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ You don't have any reminders." :
+                    "❌ У вас нет напоминалок.");
+            }
+            return;
+        }
+
+        if (text.equals("/remind_list")) {
+            var reminderOpt = reminderService.getReminder(chatId);
+            if (reminderOpt.isPresent()) {
+                Reminder reminder = reminderOpt.get();
+                String info = "en".equals(lang) ?
+                    "⏰ <b>Your Reminder</b>\n\n" +
+                    "🌍 City: " + reminder.getCityName() + "\n" +
+                    "🕐 Time: " + reminder.getTime() + "\n" +
+                    "📝 Text: " + reminder.getText() + "\n" +
+                    "📅 Days: " + reminder.getDays() :
+                    "⏰ <b>Ваша напоминалка</b>\n\n" +
+                    "🌍 Город: " + reminder.getCityName() + "\n" +
+                    "🕐 Время: " + reminder.getTime() + "\n" +
+                    "📝 Текст: " + reminder.getText() + "\n" +
+                    "📅 Дни: " + reminder.getDays();
+
+                InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+                List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                List<InlineKeyboardButton> row1 = new ArrayList<>();
+                row1.add(createInlineButton("en".equals(lang) ? "🗑️ Delete" : "🗑️ Удалить", "delete_reminder_btn"));
+                rows.add(row1);
+                markup.setKeyboard(rows);
+                
+                sendMsg(chatId, info, markup);
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ You don't have any reminders. Use /remind to create one." :
+                    "❌ У вас нет напоминалок. Используйте /remind чтобы создать.");
+            }
+            return;
+        }
+
+        if (text.equals("/my_reminder")) {
+            var reminderOpt = reminderService.getReminder(chatId);
+            if (reminderOpt.isPresent()) {
+                Reminder reminder = reminderOpt.get();
+                String info = "en".equals(lang) ?
+                    "⏰ <b>Your Reminder</b>\n\n" +
+                    "🌍 City: " + reminder.getCityName() + "\n" +
+                    "🕐 Time: " + reminder.getTime() + "\n" +
+                    "📝 Text: " + reminder.getText() + "\n" +
+                    "📅 Days: " + reminder.getDays() :
+                    "⏰ <b>Ваша напоминалка</b>\n\n" +
+                    "🌍 Город: " + reminder.getCityName() + "\n" +
+                    "🕐 Время: " + reminder.getTime() + "\n" +
+                    "📝 Текст: " + reminder.getText() + "\n" +
+                    "📅 Дни: " + reminder.getDays();
+                sendMsg(chatId, info);
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ You don't have any reminders. Use /remind to create one." :
+                    "❌ У вас нет напоминалок. Используйте /remind чтобы создать.");
+            }
+            return;
+        }
+
+        // ДОМАШНИЙ ГОРОД
+        if (text.startsWith("/home ")) {
+            String cityName = text.substring("/home ".length()).trim().toLowerCase();
+            City city = cityService.findCity(cityName);
+            if (city != null) {
+                userService.setHomeCity(chatId, cityName);
+                String displayName = cityService.getCityNameLocalized(city, lang);
+                sendMsg(chatId, "en".equals(lang) ?
+                    "✅ Home city set to <b>" + displayName + "</b>" :
+                    "✅ Домашний город установлен: <b>" + displayName + "</b>");
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ City not found." :
+                    "❌ Город не найден.");
+            }
+            return;
+        }
+
+        if (text.equals("/home")) {
+            String homeCity = userService.getHomeCity(chatId);
+            if (homeCity != null) {
+                City city = cityService.findCity(homeCity);
+                if (city != null) {
+                    String displayName = cityService.getCityNameLocalized(city, lang);
+                    String countryName = cityService.getCountryLocalized(city, lang);
+                    java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
+                    String timePattern = "12".equals(user.getTimeFormat()) ? "hh:mm a" : "HH:mm";
+                    String timeStr = cityTime.format(java.time.format.DateTimeFormatter.ofPattern(timePattern, "en".equals(lang) ? java.util.Locale.ENGLISH : new java.util.Locale("ru")));
+                    int offsetSeconds = cityTime.getOffset().getTotalSeconds();
+                    int offsetHours = offsetSeconds / 3600;
+                    String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
+                    
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("🏠 <b>").append("en".equals(lang) ? "Your Home City" : "Ваш домашний город").append("</b>\n\n");
+                    sb.append("🌍 <b>").append(displayName).append("</b>\n");
+                    sb.append("   📍 ").append(countryName).append("\n");
+                    sb.append("   🕐 ").append(timeStr).append(" | 🌐 ").append(utcStr).append("\n\n");
+                    sb.append("en".equals(lang) ? "Use /home city to change it." : "Используйте /home город чтобы изменить.");
+                    sendMsg(chatId, sb.toString());
+                }
+            } else {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "🏠 You haven't set a home city yet.\n\nUse /home Moscow to set it." :
+                    "🏠 Вы еще не задали домашний город.\n\nИспользуйте /home Москва чтобы задать.");
+            }
+            return;
+        }
+
+        // МИРОВЫЕ ЧАСЫ
+        if (text.equals("/worldclock")) {
+            String[] worldCities = {"moscow", "london", "new york", "tokyo", "dubai", "sydney", "los angeles", "beijing"};
+            
+            StringBuilder sb = new StringBuilder();
+            sb.append("🌍 <b>").append("en".equals(lang) ? "World Clock" : "Мировые часы").append("</b>\n\n");
+            
+            for (String cityName : worldCities) {
+                City city = cityService.findCity(cityName);
+                if (city != null) {
+                    java.time.ZonedDateTime cityTime = java.time.ZonedDateTime.now(java.time.ZoneId.of(city.getTimezone()));
+                    String timePattern = "12".equals(user.getTimeFormat()) ? "hh:mm a" : "HH:mm";
+                    String timeStr = cityTime.format(java.time.format.DateTimeFormatter.ofPattern(timePattern, "en".equals(lang) ? java.util.Locale.ENGLISH : new java.util.Locale("ru")));
+                    String displayName = cityService.getCityNameLocalized(city, lang);
+                    
+                    int offsetSeconds = cityTime.getOffset().getTotalSeconds();
+                    int offsetHours = offsetSeconds / 3600;
+                    String utcStr = String.format("UTC%s%02d", offsetHours >= 0 ? "+" : "-", Math.abs(offsetHours));
+                    
+                    sb.append("🕐 <b>").append(displayName).append("</b>: ").append(timeStr).append(" (").append(utcStr).append(")\n");
+                }
+            }
+            
+            sendMsg(chatId, sb.toString());
+            return;
+        }
+
+        // КОНВЕРТЕР ВРЕМЕНИ
+        if (text.startsWith("/convert ")) {
+            String homeCity = userService.getHomeCity(chatId);
+            if (homeCity == null) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ You haven't set a home city. Use /home city to set it." :
+                    "❌ Вы не задали домашний город. Используйте /home город чтобы задать.");
+                return;
+            }
+            
+            City city1 = cityService.findCity(homeCity);
+            if (city1 == null) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Home city not found in database." :
+                    "❌ Домашний город не найден в базе данных.");
+                return;
+            }
+            
+            String args = text.substring("/convert ".length()).trim();
+            String[] parts = args.split("\\s+");
+            
+            if (parts.length < 2) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Format: /convert Tokyo 15:00" :
+                    "❌ Формат: /convert Токио 15:00");
+                return;
+            }
+            
+            // Последний элемент - время
+            String timeStr = parts[parts.length - 1];
+            if (!timeStr.matches("\\d{1,2}:\\d{2}")) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Invalid time format. Use HH:MM (e.g., 15:00)." :
+                    "❌ Неверный формат времени. Используйте ЧЧ:ММ (например, 15:00).");
+                return;
+            }
+            
+            // Собираем строку города (все кроме последнего элемента)
+            StringBuilder cityBuilder = new StringBuilder();
+            for (int i = 0; i < parts.length - 1; i++) {
+                if (i > 0) cityBuilder.append(" ");
+                cityBuilder.append(parts[i]);
+            }
+            String cityStr = cityBuilder.toString().toLowerCase().trim();
+            
+            City city2 = cityService.findCity(cityStr);
+            if (city2 == null) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ City not found." :
+                    "❌ Город не найден.");
+                return;
+            }
+            
+            // Конвертируем время
+            java.time.ZoneId zone1 = java.time.ZoneId.of(city1.getTimezone());
+            java.time.ZoneId zone2 = java.time.ZoneId.of(city2.getTimezone());
+            
+            String[] timeParts = timeStr.split(":");
+            int hours = Integer.parseInt(timeParts[0]);
+            int minutes = Integer.parseInt(timeParts[1]);
+            
+            java.time.ZonedDateTime timeInCity1 = java.time.ZonedDateTime.of(java.time.LocalDate.now(), java.time.LocalTime.of(hours, minutes), zone1);
+            java.time.ZonedDateTime timeInCity2 = timeInCity1.withZoneSameInstant(zone2);
+            
+            String timePattern = "12".equals(user.getTimeFormat()) ? "hh:mm a" : "HH:mm";
+            String convertedTimeStr = timeInCity2.format(java.time.format.DateTimeFormatter.ofPattern(timePattern, "en".equals(lang) ? java.util.Locale.ENGLISH : new java.util.Locale("ru")));
+            
+            String displayName1 = cityService.getCityNameLocalized(city1, lang);
+            String displayName2 = cityService.getCityNameLocalized(city2, lang);
+            
+            sendMsg(chatId, "en".equals(lang) ?
+                "🕐 <b>" + timeStr + "</b> in " + displayName1 + " = <b>" + convertedTimeStr + "</b> in " + displayName2 :
+                "🕐 <b>" + timeStr + "</b> в " + displayName1 + " = <b>" + convertedTimeStr + "</b> в " + displayName2);
+            return;
+        }
+
+        // РАЗНИЦА ВО ВРЕМЕНИ
+        if (text.startsWith("/diff ")) {
+            String args = text.substring("/diff ".length()).trim().toLowerCase();
+            
+            City city1 = null;
+            City city2 = null;
+            
+            for (int i = 1; i < args.length(); i++) {
+                String part1 = args.substring(0, i).trim();
+                String part2 = args.substring(i).trim();
+                City c1 = cityService.findCity(part1);
+                if (c1 != null) {
+                    City c2 = cityService.findCity(part2);
+                    if (c2 != null) {
+                        city1 = c1;
+                        city2 = c2;
+                        break;
+                    }
+                }
+            }
+            
+            if (city1 == null || city2 == null) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Cities not found. Format: /diff Moscow New York" :
+                    "❌ Города не найдены. Формат: /diff Москва Нью-Йорк");
+                return;
+            }
+            
+            java.time.ZoneId zone1 = java.time.ZoneId.of(city1.getTimezone());
+            java.time.ZoneId zone2 = java.time.ZoneId.of(city2.getTimezone());
+            
+            java.time.ZonedDateTime now1 = java.time.ZonedDateTime.now(zone1);
+            int offset1 = zone1.getRules().getOffset(now1.toInstant()).getTotalSeconds();
+            int offset2 = zone2.getRules().getOffset(now1.toInstant()).getTotalSeconds();
+            int diffHours = (offset2 - offset1) / 3600;
+            
+            String displayName1 = cityService.getCityNameLocalized(city1, lang);
+            String displayName2 = cityService.getCityNameLocalized(city2, lang);
+            
+            String diffStr = diffHours >= 0 ? "+" + diffHours : String.valueOf(diffHours);
+            
+            sendMsg(chatId, "en".equals(lang) ?
+                "🕐 Time difference between <b>" + displayName1 + "</b> and <b>" + displayName2 + "</b>: " + diffStr + " hours" :
+                "🕐 Разница между <b>" + displayName1 + "</b> и <b>" + displayName2 + "</b>: " + diffStr + " часов");
+            return;
+        }
+
+        if (text.equals("/help") || text.equals("📖 Помощь") || text.equals("📖 Help")) {
+            String helpText = "en".equals(lang) ?
+                "📖 <b>WorldAtlas Bot Help</b>\n\n" +
+                "<b>Main commands:</b>\n" +
+                "• /start - Restart bot\n" +
+                "• /search_city - Find a city\n" +
+                "• /view_favorites - Your favorite cities\n" +
+                "• /download - Download the app\n" +
+                "• /lang - Change language\n" +
+                "• /help - This help message\n" +
+                "• /cancel - Cancel current action\n" +
+                "• /worldclock - World clock\n" +
+                "• /home city - Set home city\n\n" +
+                "<b>Custom cities:</b>\n" +
+                "• /create_custom - Create custom city\n" +
+                "• /list_custom - List your custom cities\n" +
+                "• /delete_custom - Delete custom city\n" +
+                "• /change_UTC_custom name - Change timezone\n" +
+                "• /change_name_custom name - Rename city\n\n" +
+                "<b>Other:</b>\n" +
+                "• /convert city1 city2 time - Time converter\n" +
+                "• /diff city1 city2 - Time difference\n" +
+                "• /remind - Create reminder\n\n" +
+                "<b>Inline mode:</b>\n" +
+                "Use @" + botUsername + " in any chat to search for cities" :
+                "📖 <b>Помощь по боту WorldAtlas</b>\n\n" +
+                "<b>Основные команды:</b>\n" +
+                "• /start - Запустить бота\n" +
+                "• /search_city - Найти город\n" +
+                "• /view_favorites - Ваши избранные города\n" +
+                "• /download - Скачать приложение\n" +
+                "• /lang - Сменить язык\n" +
+                "• /help - Эта справка\n" +
+                "• /worldclock - Мировые часы\n" +
+                "• /cancel - Отменить действие\n" +
+                "• /home город - Задать домашний город\n\n" +
+                "<b>Пользовательские города:</b>\n" +
+                "• /create_custom - создать пользовательский город\n" +
+                "• /list_custom - список ваших пользовательских городов\n" +
+                "• /delete_custom - удалить пользовательский город\n" +
+                "• /change_UTC_custom имя - Изменить часовой пояс\n" +
+                "• /change_name_custom имя - Переименовать город\n\n" +
+                "<b>Дополнительно:</b>\n" +
+                "• /convert город1 город2 время - Конвертер времени\n" +
+                "• /diff город1 город2 - Разница во времени\n" +
+                "• /remind - создать напоминалку\n\n" +
+                "<b>Inline режим:</b>\n" +
+                "Используйте @" + botUsername + " в любом чате для поиска городов";
+            sendMsg(chatId, helpText);
+            return;
+        }
+
+        if (text.equals("/adminhelp")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
+                return;
+            }
+            StringBuilder adminHelp = new StringBuilder();
+            String roleLabel = user.getRole() == User.Role.OWNER ? "💎 OWNER" : (user.getRole() == User.Role.ADMIN ? "👑 ADMIN" : "🛡️ MODERATOR");
+            String roleLabelRu = user.getRole() == User.Role.OWNER ? "💎 ВЛАДЕЛЕЦ" : (user.getRole() == User.Role.ADMIN ? "👑 АДМИН" : "🛡️ МОДЕРАТОР");
+            adminHelp.append("🛡️ <b>").append("en".equals(lang) ? "Full Control Panel" : "Полная панель управления").append("</b>\n");
+            adminHelp.append("en".equals(lang) ? "Your rank: " : "Твой ранг: ").append("<b>").append("en".equals(lang) ? roleLabel : roleLabelRu).append("</b>\n\n");
+            
+            if ("en".equals(lang)) {
+                adminHelp.append("👤 <b>Basic commands (all staff):</b>\n");
+                adminHelp.append("• /users - List of all users with clickable profiles\n");
+                adminHelp.append("• /ban @username - Ban a user\n");
+                adminHelp.append("• /unban @username - Unban a user\n\n");
+                
+                if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.OWNER) {
+                    adminHelp.append("👑 <b>Admin commands:</b>\n");
+                    adminHelp.append("• /makeadmin @username - Promote to admin (requires code confirmation)\n");
+                    adminHelp.append("• CONFIRM 1234 - Confirm promotion with code\n");
+                    adminHelp.append("• /makemod @username - Promote to moderator\n");
+                    adminHelp.append("• /kick mod @username [reason] - Demote moderator (with reason)\n");
+                    adminHelp.append("• /broadcast or /announce - Send message to all users\n\n");
+                }
+                
+                if (user.getRole() == User.Role.OWNER) {
+                    adminHelp.append("💎 <b>Owner commands (exclusive):</b>\n");
+                    adminHelp.append("• /kick admin @username [reason] - Demote admin (with reason)\n");
+                    adminHelp.append("• /makeowner @username [secret_key] - Promote to owner\n");
+                    adminHelp.append("• /demoteowner @username - Demote owner to admin\n");
+                    adminHelp.append("• /iamadmin - Secret command for bot creator\n\n");
+                    adminHelp.append("🔐 <b>Secret key for /makeowner:</b>\n");
+                    adminHelp.append("`" + ownerSecretKey + "`");
+                }
+            } else {
+                adminHelp.append("👤 <b>Базовые команды (весь персонал):</b>\n");
+                adminHelp.append("• /users - Список всех пользователей с кликабельными профилями\n");
+                adminHelp.append("• /ban @username - Заблокировать пользователя\n");
+                adminHelp.append("• /unban @username - Разблокировать пользователя\n\n");
+                
+                if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.OWNER) {
+                    adminHelp.append("👑 <b>Команды админа:</b>\n");
+                    adminHelp.append("• /makeadmin @username - Выдать админку (требуется подтверждение кодом)\n");
+                    adminHelp.append("• CONFIRM 1234 - Подтвердить выдачу админки кодом\n");
+                    adminHelp.append("• /makemod @username - Выдать модератора\n");
+                    adminHelp.append("• /kick mod @username [причина] - Снять модератора (с причиной)\n");
+                    adminHelp.append("• /broadcast или /announce - Рассылка сообщения всем пользователям\n\n");
+                }
+                
+                if (user.getRole() == User.Role.OWNER) {
+                    adminHelp.append("💎 <b>Команды владельца (эксклюзивно):</b>\n");
+                    adminHelp.append("• /kick admin @username [причина] - Снять админа (с причиной)\n");
+                    adminHelp.append("• /makeowner @username [секретный_ключ] - Выдать роль владельца\n");
+                    adminHelp.append("• /demoteowner @username - Понизить владельца до админа\n");
+                    adminHelp.append("• /iamadmin - Секретная команда создателя бота\n\n");
+                    adminHelp.append("🔐 <b>Секретный ключ для /makeowner:</b>\n");
+                    adminHelp.append("`" + ownerSecretKey + "`");
+                }
+            }
+            try {
+                sendMsg(chatId, adminHelp.toString());
+            } catch (Exception e) {
+                log.error("Admin help error: {}", e.getMessage());
+                sendMsg(chatId, "❌ Ошибка отправки справки админа");
+            }
+            return;
+        }
+
+
+        // РАССЫЛКА ВСЕМ ПОЛЬЗОВАТЕЛЯМ (только владелец)
+        if (text.startsWith("/broadcast ")) {
+            if (user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Only the owner can use this command." :
+                    "❌ Только владелец может использовать эту команду.");
+                return;
+            }
+            
+            String broadcastMessage = text.substring("/broadcast ".length()).trim();
+            if (broadcastMessage.isEmpty()) {
+                sendMsg(chatId, "en".equals(lang) ?
+                    "❌ Usage: /broadcast Your message here" :
+                    "❌ Использование: /broadcast Ваше сообщение");
+                return;
+            }
+            
+            sendMsg(chatId, "en".equals(lang) ?
+                "📢 Starting broadcast to all users..." :
+                "📢 Начинаю рассылку всем пользователям...");
+            
+            int sent = 0;
+            int failed = 0;
+            
+            List<User> allUsers = userService.getAllUsers();
+            for (User u : allUsers) {
+                try {
+                    SendMessage msg = new SendMessage();
+                    msg.setChatId(String.valueOf(u.getChatId()));
+                    msg.setText(broadcastMessage);
+                    msg.setParseMode("HTML");
+                    execute(msg);
+                    sent++;
+                    Thread.sleep(50);
+                } catch (Exception e) {
+                    failed++;
+                    System.out.println("❌ Ошибка отправки пользователю " + u.getChatId() + ": " + e.getMessage());
+                }
+            }
+            
+            sendMsg(chatId, "en".equals(lang) ?
+                "✅ Broadcast completed!\n\n📤 Sent: " + sent + "\n❌ Failed: " + failed :
+                "✅ Рассылка завершена!\n\n📤 Отправлено: " + sent + "\n❌ Ошибок: " + failed);
+            return;
+        }
+
+        if (text.equals("/iamadmin")) {
+            String u = user.getUsername();
+            if ("BobrArbuz".equalsIgnoreCase(u) || "ArbuznyBober".equalsIgnoreCase(u)) {
+                userService.setRole(chatId, User.Role.OWNER);
+                sendMsg(chatId, "💎 Вы назначены ВЛАДЕЛЬЦЕМ бота!");
+                notifyAdmin("💎 OWNER ASSIGNED\nTo: @" + u + " (ID: " + chatId + ")");
+            } else {
+                sendMsg(chatId, "❌ Эта команда только для создателя бота.");
+            }
+            return;
+        }
+
+        if (text.startsWith("/makeowner ")) {
+            if (user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Только владелец может выдавать эту роль");
+                notifyAdmin("⚠️ ПОПЫТКА /makeowner\nBy: @" + user.getUsername() + " (ID: " + chatId + ")");
+                return;
+            }
+            String[] parts = text.split(" ", 3);
+            if (parts.length < 3 || !parts[2].equals(ownerSecretKey)) {
+                sendMsg(chatId, "❌ Неверный секретный ключ");
+                notifyAdmin("🚨 НЕВЕРНЫЙ КЛЮЧ OWNER\nBy: @" + user.getUsername());
+                return;
+            }
+            String targetUsername = parts[1].replace("@", "");
+            User target = userService.findByUsername(targetUsername);
+            if (target != null) {
+                userService.setRole(target.getChatId(), User.Role.OWNER);
+                sendMsg(chatId, "💎 @" + targetUsername + " теперь ВЛАДЕЛЕЦ!");
+                notifyAdmin("💎 MAKE OWNER\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
+            } else {
+                sendMsg(chatId, "❌ Пользователь не найден");
+            }
+            return;
+        }
+
+        if (text.startsWith("/demoteowner ")) {
+            if (user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Только владелец может использовать эту команду");
+                return;
+            }
+            String targetUsername = text.substring(13).trim().replace("@", "");
+            User target = userService.findByUsername(targetUsername);
+            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
+            if (target.getChatId().equals(chatId)) { sendMsg(chatId, "❌ Нельзя снять самого себя"); return; }
+            if (target.getRole() != User.Role.OWNER) { sendMsg(chatId, "❌ Этот пользователь не владелец"); return; }
+            userService.setRole(target.getChatId(), User.Role.ADMIN);
+            sendMsg(chatId, "✅ @" + targetUsername + " понижен до администратора");
+            notifyAdmin("⬇️ DEMOTE OWNER\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
+            return;
+        }
+
+        if (text.startsWith("/kick mod ")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Только для админов и владельца");
+                return;
+            }
+            String afterCmd = text.substring("/kick mod ".length()).trim();
+            String[] parts = afterCmd.split("\\s+", 2);
+            String targetUsername = parts[0].replace("@", "");
+            String reason = parts.length > 1 ? parts[1] : "не указана";
+            
+            User target = userService.findByUsername(targetUsername);
+            if (target == null) {
+                sendMsg(chatId, "❌ Пользователь не найден");
+                return;
+            }
+            if (target.getRole() != User.Role.MODERATOR) {
+                sendMsg(chatId, "❌ Этот пользователь не является модератором");
+                return;
+            }
+            userService.setRole(target.getChatId(), User.Role.USER);
+            sendMsg(chatId, "✅ @" + targetUsername + " лишен прав модератора");
+            
+            String demoteMsg = "⚠️ <b>Вы были сняты с должности МОДЕРАТОР</b>\n\n" +
+                "👤 Снял: @" + user.getUsername() + "\n" +
+                "📝 Причина: " + reason;
+            sendMsg(target.getChatId(), demoteMsg);
+            
+            notifyAdmin("🛡️ KICK MOD\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername + "\nReason: " + reason);
+            return;
+        }
+
+        if (text.startsWith("/kick admin ")) {
+            if (user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Только владелец может снимать админов");
+                return;
+            }
+            String afterCmd = text.substring("/kick admin ".length()).trim();
+            String[] parts = afterCmd.split("\\s+", 2);
+            String targetUsername = parts[0].replace("@", "");
+            String reason = parts.length > 1 ? parts[1] : "не указана";
+            
+            User target = userService.findByUsername(targetUsername);
+            if (target == null) {
+                sendMsg(chatId, "❌ Пользователь не найден");
+                return;
+            }
+            if (target.getRole() != User.Role.ADMIN) {
+                sendMsg(chatId, "❌ Этот пользователь не является администратором");
+                return;
+            }
+            userService.setRole(target.getChatId(), User.Role.USER);
+            sendMsg(chatId, "✅ @" + targetUsername + " лишен прав админа");
+            
+            String demoteMsg = "⚠️ <b>Вы были сняты с должности АДМИНИСТРАТОР</b>\n\n" +
+                "👤 Снял: @" + user.getUsername() + "\n" +
+                "📝 Причина: " + reason;
+            sendMsg(target.getChatId(), demoteMsg);
+            
+            notifyAdmin("👢 KICK ADMIN\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername + "\nReason: " + reason);
+            return;
+        }
+
+        if (text.startsWith("/makeadmin ")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Только для администраторов и владельца");
+                return;
+            }
+            String targetUsername = text.substring(11).trim().replace("@", "");
+            User target = userService.findByUsername(targetUsername);
+            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
+            if (target.getRole() == User.Role.OWNER || target.getRole() == User.Role.ADMIN) {
+                sendMsg(chatId, "❌ Этот пользователь уже имеет высокий ранг");
+                return;
+            }
+            String code = String.format("%04d", new Random().nextInt(10000));
+            userStates.put(chatId, "CONFIRM_ADMIN:" + target.getChatId() + ":" + code);
+            sendMsg(chatId, "⚠️ <b>Подтверждение выдачи админки</b>\n\nЦель: @" + targetUsername + "\n\nЧтобы подтвердить, напишите:\n<code>CONFIRM " + code + "</code>\n\nДля отмены: /cancel");
+            return;
+        }
+
+        if (text.startsWith("CONFIRM ")) {
+            String confirmState = userStates.getIfPresent(chatId);
+            if (confirmState != null && confirmState.startsWith("CONFIRM_ADMIN:")) {
+                String[] parts = confirmState.split(":");
+                if (parts[2].equals(text.substring(8).trim())) {
+                    Long targetChatId = Long.parseLong(parts[1]);
+                    userService.setRole(targetChatId, User.Role.ADMIN);
+                    User target = userService.getUser(targetChatId);
+                    userStates.invalidate(chatId);
+                    sendMsg(chatId, "✅ @" + target.getUsername() + " теперь АДМИНИСТРАТОР");
+                    notifyAdmin("👑 MAKE ADMIN\nBy: @" + user.getUsername() + "\nTarget: @" + target.getUsername());
+                } else {
+                    sendMsg(chatId, "❌ Неверный код подтверждения");
+                }
+                return;
+            }
+        }
+
+        if (text.startsWith("/makemod ")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Только для администраторов и владельца");
+                return;
+            }
+            String targetUsername = text.substring(9).trim().replace("@", "");
+            User target = userService.findByUsername(targetUsername);
+            if (target != null) {
+                userService.setRole(target.getChatId(), User.Role.MODERATOR);
+                sendMsg(chatId, "✅ @" + targetUsername + " теперь МОДЕРАТОР");
+                notifyAdmin("🛡️ MAKE MOD\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
+            } else {
+                sendMsg(chatId, "❌ Пользователь не найден");
+            }
+            return;
+        }
+
+        if (text.equals("/users")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
+                return;
+            }
+            List<User> users = userService.getAllUsers();
+            StringBuilder sb = new StringBuilder("👥 <b>Users List</b> (Total: " + users.size() + ")\n\n");
+            for (User u : users) {
+                String displayName = (u.getUsername() != null && !u.getUsername().isEmpty()) ? "@" + u.getUsername() : u.getFirstName();
+                String roleIcon = u.getRole() == User.Role.OWNER ? "💎" : (u.getRole() == User.Role.ADMIN ? "👑" : (u.getRole() == User.Role.MODERATOR ? "🛡️" : "👤"));
+                sb.append("• <a href=\"tg://user?id=").append(u.getChatId()).append("\">").append(displayName).append("</a> (ID: ").append(u.getChatId()).append(") ").append(roleIcon).append(u.isBanned() ? " 🚫" : "").append("\n");
+            }
+            sendMsg(chatId, sb.toString());
+            return;
+        }
+
+        if (text.startsWith("/ban ")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
+                return;
+            }
+            String targetUsername = text.substring(5).trim().replace("@", "");
+            User target = userService.findByUsername(targetUsername);
+            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
+            if (target.getRole() == User.Role.OWNER || (user.getRole() != User.Role.OWNER && target.getRole() == User.Role.ADMIN)) {
+                sendMsg(chatId, "❌ Нельзя заблокировать пользователя с равным или высшим рангом");
+                return;
+            }
+            userService.setBanned(target.getChatId(), true);
+            sendMsg(chatId, "✅ Пользователь @" + targetUsername + " заблокирован");
+            notifyAdmin("🔨 BAN\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
+            return;
+        }
+
+        if (text.startsWith("/unban ")) {
+            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.MODERATOR && user.getRole() != User.Role.OWNER) {
+                sendMsg(chatId, "❌ Доступ запрещен / Access denied");
+                return;
+            }
+            String targetUsername = text.substring(7).trim().replace("@", "");
+            User target = userService.findByUsername(targetUsername);
+            if (target == null) { sendMsg(chatId, "❌ Пользователь не найден"); return; }
+            userService.setBanned(target.getChatId(), false);
+            sendMsg(chatId, "✅ Пользователь @" + targetUsername + " разблокирован");
+            notifyAdmin("🔓 UNBAN\nBy: @" + user.getUsername() + "\nTarget: @" + targetUsername);
+            return;
+        }
+
+        if (text.equals("/download") || text.equals("📥 Скачать") || text.equals("📥 Download")) { showDownloadMenu(chatId, lang); return; }
+        if (text.equals("/lang") || text.equals("🌐 Язык") || text.equals("🌐 Language")) {
+            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+            List<InlineKeyboardButton> row = new ArrayList<>();
+            row.add(createInlineButton("🇷🇺 Русский", "lang_ru"));
+            row.add(createInlineButton("🇬🇧 English", "lang_en"));
+            rows.add(row);
+            markup.setKeyboard(rows);
+            sendMsg(chatId, "🌍 Выберите язык / Choose language:", markup);
+            return;
+        }
         City city = cityService.findCity(text);
                 if (city != null) {
                     sendMsg(chatId, cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user), getCityActionsKeyboard(city.getName(), lang));

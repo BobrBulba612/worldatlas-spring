@@ -25,6 +25,7 @@ public class User {
     private String language = "ru";
     private String timeFormat = "24";
     private String homeCity;
+    private boolean showHomeComparison = true;
 
     @Column(name = "show_weather")
     private Boolean showWeather = true;
@@ -62,4 +63,12 @@ public class User {
         this.showSunriseSunset = showSunriseSunset;
     }
 
+
+    public boolean isShowHomeComparison() {
+        return showHomeComparison;
+    }
+
+    public void setShowHomeComparison(boolean showHomeComparison) {
+        this.showHomeComparison = showHomeComparison;
+    }
 }
