@@ -31,7 +31,7 @@ public class GeoService {
     public GeoService(CityRepository cityRepository) {
         this.cityRepository = cityRepository;
         this.httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(5))
             .build();
     }
     
@@ -54,7 +54,7 @@ public class GeoService {
             
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(10))
+                .timeout(Duration.ofSeconds(5))
                 .GET()
                 .build();
             
@@ -151,4 +151,19 @@ public class GeoService {
             return city;
         }
     }
+    
+    public boolean isApiAvailable() {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://api.openweathermap.org/geo/1.0/direct?q=London&limit=1&appid=" + apiKey))
+                .timeout(Duration.ofSeconds(3))
+                .GET().build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
 }
+

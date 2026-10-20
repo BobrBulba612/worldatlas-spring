@@ -1,6 +1,7 @@
 package com.worldatlas.bot.bot;
 
 import org.slf4j.Logger;
+import io.sentry.Sentry;
 import org.slf4j.LoggerFactory;
 
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,9 @@ import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScope
 import com.worldatlas.bot.service.TelegramRetryService;
 import com.worldatlas.bot.service.RateLimitService;
 import org.springframework.beans.factory.annotation.Value;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class WorldAtlasBot extends TelegramLongPollingBot {
@@ -68,7 +72,10 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
     private final String botUsername;
     private final String botToken;
     
-    private final Map<Long, String> userStates = new ConcurrentHashMap<>();
+    private final Cache<Long, String> userStates = Caffeine.newBuilder()
+        .expireAfterWrite(10, TimeUnit.MINUTES)
+        .maximumSize(100_000)
+        .build();
     private int lastUpdateId = 0;
     private static final String STATE_WAITING_CITY = "WAITING_CITY";
     private static final String STATE_WAITING_REMOVE = "WAITING_REMOVE";
@@ -953,14 +960,14 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
         }
 
         if (text.startsWith("CONFIRM ")) {
-            String state = userStates.get(chatId);
+            String state = userStates.getIfPresent(chatId);
             if (state != null && state.startsWith("CONFIRM_ADMIN:")) {
                 String[] parts = state.split(":");
                 if (parts[2].equals(text.substring(8).trim())) {
                     Long targetChatId = Long.parseLong(parts[1]);
                     userService.setRole(targetChatId, User.Role.ADMIN);
                     User target = userService.getUser(targetChatId);
-                    userStates.remove(chatId);
+                    userStates.invalidate(chatId);
                     sendMsg(chatId, "✅ @" + target.getUsername() + " теперь АДМИНИСТРАТОР");
                     notifyAdmin("👑 MAKE ADMIN\nBy: @" + user.getUsername() + "\nTarget: @" + target.getUsername());
                 } else {
@@ -1652,15 +1659,15 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
         if (text.equals("/cancel") || text.equals("❌ Отмена") || text.equals("❌ Cancel")) {
-            userStates.remove(chatId);
+            userStates.invalidate(chatId);
             sendMsg(chatId, "en".equals(lang) ? "✅ Action cancelled." : "✅ Действие отменено.");
             return;
         }
 
-        String state = userStates.get(chatId);
+        String state = userStates.getIfPresent(chatId);
         if (state != null) {
             if (state.equals(STATE_WAITING_CUSTOM_CITY_NAME)) {
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 String cityName = text.toLowerCase().trim();
                 
                 // Проверяем обычные города
@@ -1718,7 +1725,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 }
                 
                 CustomCity customCity = customCityService.createCustomCity(chatId, cityName, timezone);
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 
                 String msg = "en".equals(lang) ?
                     "✅ Custom city <b>" + cityName + "</b> created successfully!\n\n🌐 Timezone: UTC" + timezone :
@@ -1728,7 +1735,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 return;
             }
                         if (state.equals(STATE_WAITING_DELETE_CUSTOM_CITY)) {
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 String cityName = text.toLowerCase().trim();
                 List<CustomCity> customCities = customCityService.getUserCustomCities(chatId);
                 CustomCity cityToDelete = null;
@@ -1759,7 +1766,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         sendMsg(chatId, "en".equals(lang) ?
                             "❌ Invalid timezone format. Use +07 or -11" :
                             "❌ Неверный формат часового пояса. Используйте +07 или -11");
-                        userStates.remove(chatId);
+                        userStates.invalidate(chatId);
                         return;
                     }
                     
@@ -1769,7 +1776,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         sendMsg(chatId, "en".equals(lang) ?
                             "❌ Timezone must be between -12 and +12" :
                             "❌ Часовой пояс должен быть между -12 и +12");
-                        userStates.remove(chatId);
+                        userStates.invalidate(chatId);
                         return;
                     }
                     
@@ -1780,12 +1787,12 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         "✅ Timezone for <b>" + displayName + "</b> updated to UTC" + newTz :
                         "✅ Часовой пояс для <b>" + displayName + "</b> обновлён на UTC" + newTz);
                 }
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 return;
             }
 
             if (state.equals(STATE_WAITING_HOME_CITY)) {
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 String cityName = text.toLowerCase().trim();
                 City city = cityService.findCity(cityName);
                 if (city != null) {
@@ -1822,7 +1829,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         "✅ City renamed from <b>" + oldName + "</b> to <b>" + displayName + "</b>" :
                         "✅ Город переименован из <b>" + oldName + "</b> в <b>" + displayName + "</b>");
                 }
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 return;
             }
 
@@ -1947,7 +1954,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 }
                 
                 reminderService.createReminder(chatId, cityName, time, reminderText, days);
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 
                 sendMsg(chatId, "en".equals(lang) ?
                     "✅ Reminder created!\n\n🌍 City: " + cityName + "\n🕐 Time: " + time + "\n📝 Text: " + reminderText + "\n📅 Days: " + days + "\n\nYou will receive a notification when it's time." :
@@ -1956,10 +1963,22 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             }
 
             if (state.equals(STATE_WAITING_CITY)) {
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
         
         // ========== КОМАНДА /about ==========
-        if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
+        
+        // ========== ТЕСТ SENTRY ==========
+        if (text.equals("/test_sentry") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                Sentry.captureMessage("🧪 Test Sentry event from chatId: " + chatId);
+                sendMsg(chatId, "✅ Тестовое событие отправлено в Sentry!\n\nПроверь панель Sentry — событие должно появиться в течение 30 секунд.");
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
+            }
+            return;
+        }
+
+if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
             String aboutText = "en".equals(lang) ?
                 "🤖 <b>About WorldAtlas Bot</b>\n\n" +
                 "👨‍💻 <b>Creator:</b> @BobrArbuz\n\n" +
@@ -1970,6 +1989,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 "⚙️ <b>Tech Stack:</b>\n" +
                 "• Java 21 + Spring Boot\n" +
                 "• PostgreSQL (Neon)\n" +
+                "• Caffeine Cache\n" +
+                "• Sentry (error monitoring)\n" +
                 "• Hosting: Render\n\n" +
                 "💡 Questions or suggestions? Use /support!" :
                 "🤖 <b>О боте WorldAtlas</b>\n\n" +
@@ -1981,6 +2002,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 "⚙️ <b>Технологии:</b>\n" +
                 "• Java 21 + Spring Boot\n" +
                 "• PostgreSQL (Neon)\n" +
+                "• Caffeine Cache (кэширование)\n" +
+                "• Sentry (мониторинг ошибок)\n" +
                 "• Хостинг: Render\n\n" +
                 "💡 Есть вопросы или предложения? Пишите /support!";
             
@@ -1996,7 +2019,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 }
                 return; // ВАЖНО: прерываем выполнение, чтобы не дойти до общего обработчика
             } else if (state.equals(STATE_WAITING_REMOVE)) {
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 String cityToRemove = text.toLowerCase().trim();
                 
                 // Проверяем обычные города
@@ -2028,7 +2051,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         "❌ Город не найден в избранном.");
                 }
             } else if (state.equals(STATE_WAITING_BROADCAST)) {
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 if (user.getRole() == User.Role.ADMIN || user.getRole() == User.Role.OWNER) sendBroadcast(text, lang);
             }
             return;
@@ -2180,16 +2203,16 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 "🏠 Введите название вашего домашнего города:");
             return;
         } else if (data.equals("cancel_home_city")) {
-            userStates.remove(chatId);
+            userStates.invalidate(chatId);
             editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Action cancelled." : "✅ Действие отменено.");
         } else if (data.equals("delete_reminder_btn")) {
             reminderService.deleteReminder(chatId);
             editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Reminder deleted." : "✅ Напоминалка удалена.");
         } else if (data.equals("cancel_reminder")) {
-            userStates.remove(chatId);
+            userStates.invalidate(chatId);
             editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Reminder creation cancelled." : "✅ Создание напоминалки отменено.");
         } else if (data.startsWith("day_")) {
-            String state = userStates.get(chatId);
+            String state = userStates.getIfPresent(chatId);
             if (state != null && state.startsWith("REMINDER_WAIT_DAYS:")) {
                 String daysData = state.substring("REMINDER_WAIT_DAYS:".length());
                 String[] parts = daysData.split(";;", 3);
@@ -2200,7 +2223,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 String day = data.substring("day_".length());
                 
                 reminderService.createReminder(chatId, cityName, time, reminderText, day);
-                userStates.remove(chatId);
+                userStates.invalidate(chatId);
                 
                 editMessageText(chatId, messageId, "en".equals(lang) ?
                     "✅ Reminder created!\n\n🌍 City: " + cityName + "\n🕐 Time: " + time + "\n📝 Text: " + reminderText + "\n📅 Days: " + day + "\n\nYou will receive a notification when it's time." :
@@ -2329,7 +2352,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 
                 if (isSubscribed) {
                     userService.setSubscribed(chatId, true);
-                    userStates.remove(chatId);
+                    userStates.invalidate(chatId);
                     editMessageText(chatId, messageId, "en".equals(lang) ? "✅ Subscription confirmed!" : "✅ Подписка подтверждена!");
                     User updatedUser = userService.getUser(chatId);
                     sendWelcome(chatId, updatedUser.getLanguage());

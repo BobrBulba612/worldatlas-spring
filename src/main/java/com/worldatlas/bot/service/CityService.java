@@ -876,7 +876,17 @@ public class CityService {
                 return geoService.saveCityIfNotExists(found);
             }
         } catch (Exception e) {
-            // Игнорируем ошибки онлайн-поиска
+            // Проверяем, является ли причиной таймаут
+            Throwable cause = e;
+            while (cause != null) {
+                if (cause instanceof java.net.http.HttpTimeoutException || 
+                    cause instanceof java.net.SocketTimeoutException ||
+                    (cause.getMessage() != null && cause.getMessage().toLowerCase().contains("timed out"))) {
+                    throw new RuntimeException("API_TIMEOUT", e);
+                }
+                cause = cause.getCause();
+            }
+            throw new RuntimeException("API_ERROR", e);
         }
         
         return null;
