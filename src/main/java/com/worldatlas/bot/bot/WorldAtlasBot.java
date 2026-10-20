@@ -1054,6 +1054,18 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             sendMsg(chatId, "🌍 Выберите язык / Choose language:", markup);
             return;
         }
+        // ========== КОМАНДА /about ==========
+        
+        // ========== ТЕСТ SENTRY ==========
+        if (text.equals("/test_sentry") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
+            try {
+                Sentry.captureMessage("🧪 Test Sentry event from chatId: " + chatId);
+                sendMsg(chatId, "✅ Тестовое событие отправлено в Sentry!\n\nПроверь панель Sentry — событие должно появиться в течение 30 секунд.");
+            } catch (Exception e) {
+                sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
+            }
+            return;
+        }
         if (text.equals("/search_city") || text.equals("🔍 Поиск") || text.equals("🔍 Search")) {
             userStates.put(chatId, STATE_WAITING_CITY);
             sendMsg(chatId, "en".equals(lang) ? "🔍 Enter city name:" : "🔍 Введите название города:");
@@ -1965,18 +1977,6 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             if (state.equals(STATE_WAITING_CITY)) {
                 userStates.invalidate(chatId);
         
-        // ========== КОМАНДА /about ==========
-        
-        // ========== ТЕСТ SENTRY ==========
-        if (text.equals("/test_sentry") && chatId == com.worldatlas.bot.service.UserService.MAIN_ADMIN_ID) {
-            try {
-                Sentry.captureMessage("🧪 Test Sentry event from chatId: " + chatId);
-                sendMsg(chatId, "✅ Тестовое событие отправлено в Sentry!\n\nПроверь панель Sentry — событие должно появиться в течение 30 секунд.");
-            } catch (Exception e) {
-                sendMsg(chatId, "❌ Ошибка: " + e.getMessage());
-            }
-            return;
-        }
 
 if (text.equals("/about") || text.equals("/info") || text.equals("ℹ️ О боте") || text.equals("ℹ️ About")) {
             String aboutText = "en".equals(lang) ?
