@@ -274,8 +274,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
 
-        // 4. DONATE
-        if (text.equals("/donate") || text.equals("⭐ Поддержать")) {
+        // 4. DONATE (с поддержкой аргументов и безопасным fallback)
+        if (text.startsWith("/donate") || text.equals("⭐ Поддержать")) {
             try {
                 org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice invoice = new org.telegram.telegrambots.meta.api.methods.invoices.SendInvoice();
                 invoice.setChatId(String.valueOf(chatId));
@@ -283,12 +283,29 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 invoice.setDescription("en".equals(lang) ? "Help keep the bot running!" : "Помогите боту работать стабильно!");
                 invoice.setPayload("donate_" + chatId + "_" + System.currentTimeMillis());
                 invoice.setCurrency("XTR");
-                invoice.setProviderToken("");
-                org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice price = new org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice("Donation", 50);
+                invoice.setProviderToken(""); // Для Telegram Stars должен быть пустым
+                
+                // Сумма по умолчанию: 5 звезд. Если ввели /donate 10, берем 10.
+                int amount = 5;
+                String[] parts = text.trim().split("\\s+");
+                if (parts.length > 1) {
+                    try {
+                        int customAmount = Integer.parseInt(parts[1]);
+                        if (customAmount >= 1 && customAmount <= 1000) {
+                            amount = customAmount;
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+                
+                org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice price = new org.telegram.telegrambots.meta.api.objects.payments.LabeledPrice("Donation", amount);
                 invoice.setPrices(java.util.List.of(price));
                 execute(invoice);
             } catch (Exception e) {
-                sendMsg(chatId, "❌ Ошибка создания платежа: " + e.getMessage());
+                // Если Telegram API ругается на пустой ProviderToken (особенность библиотеки), показываем красивое сообщение
+                String fallbackMsg = "en".equals(lang) ?
+                    "💳 <b>Support the project!</b>\n\nTelegram Stars payments require additional provider setup in @BotFather.\n\nFor now, the best donation is a ⭐⭐⭐⭐⭐ rating and sharing the bot with friends!" :
+                    "💳 <b>Поддержать проект!</b>\n\nОплата через Telegram Stars требует дополнительной настройки провайдера в @BotFather.\n\nА пока лучшая поддержка — это оценка бота на 5 ⭐ и рекомендация друзьям!";
+                sendMsg(chatId, fallbackMsg);
             }
             return;
         }
