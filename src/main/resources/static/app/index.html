@@ -3,700 +3,450 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>WorldAtlas Mini App</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>WorldAtlas</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --tg-theme-bg-color: #ffffff;
-            --tg-theme-text-color: #000000;
-            --tg-theme-hint-color: #999999;
-            --tg-theme-link-color: #007aff;
-            --tg-theme-button-color: #007aff;
-            --tg-theme-button-text-color: #ffffff;
-            --tg-theme-secondary-bg-color: #f2f2f7;
-            --safe-top: env(safe-area-inset-top);
-            --safe-bottom: env(safe-area-inset-bottom);
+            --bg: var(--tg-theme-bg-color, #ffffff);
+            --text: var(--tg-theme-text-color, #000000);
+            --hint: var(--tg-theme-hint-color, #999999);
+            --button: var(--tg-theme-button-color, #007aff);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
         }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background-color: var(--tg-theme-bg-color);
-            color: var(--tg-theme-text-color);
-            padding-top: var(--safe-top);
-            padding-bottom: var(--safe-bottom);
-            overscroll-behavior: none;
-        }
-        
-        .app-container {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            height: 100dvh;
-            max-width: 100%;
+            overflow: hidden;
         }
-        
-        .header {
-            background: linear-gradient(135deg, var(--tg-theme-button-color), #0056b3);
-            color: var(--tg-theme-button-text-color);
-            padding: 16px;
-            text-align: center;
-            flex-shrink: 0;
-            position: relative;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-        }
-        
-        .header h1 {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        
-        .header p {
-            font-size: 13px;
-            opacity: 0.9;
-        }
-        
-        .settings-bar {
-            display: flex;
-            gap: 8px;
-            padding: 12px;
-            background: var(--tg-theme-secondary-bg-color);
-            flex-shrink: 0;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        .settings-toggle {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 12px;
-            background: var(--tg-theme-bg-color);
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-            border: 2px solid transparent;
-        }
-        
-        .settings-toggle.active {
-            background: var(--tg-theme-button-color);
-            color: var(--tg-theme-button-text-color);
-        }
-        
-        .settings-toggle:active {
-            transform: scale(0.95);
-        }
-        
-        .toggle-icon {
-            font-size: 16px;
-        }
-        
-        .search-container {
-            padding: 12px;
-            background: var(--tg-theme-secondary-bg-color);
-            flex-shrink: 0;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 12px 16px;
-            font-size: 16px;
-            border: none;
-            border-radius: 12px;
-            background: var(--tg-theme-bg-color);
-            color: var(--tg-theme-text-color);
-            outline: none;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .search-input::placeholder {
-            color: var(--tg-theme-hint-color);
-        }
-        
-        .results-container {
+        .tab-content {
             flex: 1;
             overflow-y: auto;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-            padding: 12px;
+            padding: 16px;
+            display: none;
+            padding-bottom: 80px;
         }
+        .tab-content.active { display: block; }
         
-        .city-card {
-            background: var(--tg-theme-bg-color);
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--secondary-bg);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+            border-top: 1px solid rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+            color: var(--hint);
+            cursor: pointer;
+            padding: 4px 12px;
+        }
+        .nav-item.active { color: var(--button); font-weight: 600; }
+        .nav-icon { font-size: 24px; margin-bottom: 2px; }
+
+        .search-box {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: none;
+            background: var(--secondary-bg);
+            color: var(--text);
+            font-size: 16px;
+            margin-bottom: 16px;
+            outline: none;
+        }
+        .card {
+            background: var(--secondary-bg);
             border-radius: 16px;
             padding: 16px;
             margin-bottom: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: 1px solid rgba(0,0,0,0.05);
         }
-        
-        .city-card:active {
-            transform: scale(0.98);
-            box-shadow: 0 1px 6px rgba(0,0,0,0.1);
-        }
-        
-        .city-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 8px;
-        }
-        
-        .city-name {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-        
-        .city-country {
-            font-size: 13px;
-            color: var(--tg-theme-hint-color);
-        }
-        
-        .city-time-block {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(0,0,0,0.05);
-        }
-        
-        .city-time {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--tg-theme-button-color);
-            line-height: 1;
-        }
-        
-        .city-date {
-            font-size: 13px;
-            color: var(--tg-theme-hint-color);
-            margin-top: 4px;
-        }
-        
-        .home-diff {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 8px;
-            padding: 6px 10px;
-            background: rgba(0,122,255,0.1);
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--tg-theme-button-color);
-        }
-        
-        .weather-block {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-            padding: 8px;
-            background: rgba(0,0,0,0.03);
-            border-radius: 8px;
-        }
-        
-        .weather-icon {
-            font-size: 24px;
-        }
-        
-        .weather-info {
-            flex: 1;
-        }
-        
-        .weather-temp {
-            font-size: 18px;
-            font-weight: 600;
-        }
-        
-        .weather-desc {
-            font-size: 12px;
-            color: var(--tg-theme-hint-color);
-        }
-        
-        .sunrise-sunset {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 8px;
-            padding: 8px;
-            background: rgba(255,193,7,0.1);
-            border-radius: 8px;
-            font-size: 12px;
-        }
-        
-        .sun-item {
-            display: flex;
+        .card-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+        .card-subtitle { font-size: 14px; color: var(--hint); margin-bottom: 8px; }
+        .time-big { font-size: 32px; font-weight: 700; color: var(--button); }
+        .diff-badge {
+            display: inline-flex;
             align-items: center;
             gap: 4px;
+            background: rgba(0,122,255,0.1);
+            color: var(--button);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-top: 8px;
         }
-        
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--tg-theme-hint-color);
-        }
-        
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid var(--tg-theme-secondary-bg-color);
-            border-top: 4px solid var(--tg-theme-button-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--tg-theme-hint-color);
-        }
-        
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-        
-        .error-message {
-            background: #ff3b30;
-            color: white;
+        .btn {
+            width: 100%;
             padding: 12px;
             border-radius: 12px;
-            margin: 12px;
-            text-align: center;
-        }
-        
-        .section-title {
-            font-size: 14px;
+            border: none;
+            background: var(--button);
+            color: var(--button-text);
+            font-size: 16px;
             font-weight: 600;
-            color: var(--tg-theme-hint-color);
-            margin: 16px 0 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .btn:active { opacity: 0.8; }
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--button);
+            color: var(--button);
         }
         
-        /* Tablet */
-        @media (min-width: 768px) {
-            .results-container {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-                gap: 12px;
-                align-content: start;
-            }
-            
-            .city-card {
-                margin-bottom: 0;
-            }
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
         }
+        .setting-label { font-size: 16px; }
+        .toggle {
+            width: 50px;
+            height: 30px;
+            background: #ccc;
+            border-radius: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .toggle.on { background: #34c759; }
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .toggle.on::after { left: 22px; }
         
-        /* Desktop */
-        @media (min-width: 1024px) {
-            .app-container {
-                max-width: 1200px;
-                margin: 0 auto;
-            }
-            
-            .results-container {
-                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            }
-        }
-        
-        /* Landscape mobile */
-        @media (max-height: 500px) and (orientation: landscape) {
-            .header {
-                padding: 8px;
-            }
-            
-            .header h1 {
-                font-size: 16px;
-            }
-            
-            .search-container, .settings-bar {
-                padding: 8px;
-            }
-        }
+        .empty { text-align: center; color: var(--hint); padding: 40px 20px; }
+        .loading { text-align: center; padding: 40px; color: var(--hint); }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <div class="header">
-            <h1>🌍 WorldAtlas</h1>
-            <p>Время в городах мира</p>
+
+    <div id="tab-home" class="tab-content active">
+        <input type="text" class="search-box" id="searchInput" placeholder="🔍 Поиск города..." autocomplete="off">
+        <div id="citiesList">
+            <div class="loading">Загрузка...</div>
+        </div>
+    </div>
+
+    <div id="tab-profile" class="tab-content">
+        <div class="card">
+            <div class="card-title">👤 Профиль</div>
+            <div class="card-subtitle" id="profileInfo">Загрузка...</div>
+        </div>
+        <div class="card">
+            <div class="card-title">🏠 Домашний город</div>
+            <div class="card-subtitle" id="profileHomeCity">Не установлен</div>
+        </div>
+        <div class="card">
+            <div class="card-title">⭐ Избранное</div>
+            <div id="profileFavorites" class="card-subtitle">Пусто</div>
+        </div>
+        <div class="card">
+            <div class="card-title">⏰ Напоминалка</div>
+            <div id="profileReminder" class="card-subtitle">Не установлена</div>
+        </div>
+    </div>
+
+    <div id="tab-settings" class="tab-content">
+        <div class="card">
+            <div class="card-title">⚙️ Основные</div>
+            <div class="setting-row">
+                <span class="setting-label">🌐 Язык</span>
+                <button class="btn btn-secondary" style="width: auto; padding: 6px 12px; margin:0;" id="btnLang" onclick="toggleLang()">RU</button>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">🕐 Формат времени</span>
+                <button class="btn btn-secondary" style="width: auto; padding: 6px 12px; margin:0;" id="btnFormat" onclick="toggleFormat()">24ч</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">🎨 Отображение карточки</div>
+            <div class="setting-row">
+                <span class="setting-label">🏠 Сравнение с домом</span>
+                <div class="toggle" id="toggleHome" onclick="toggleSetting('showHomeComparison')"></div>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">🌤️ Погода</span>
+                <div class="toggle" id="toggleWeather" onclick="toggleSetting('showWeather')"></div>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">🌅 Восход / Закат</span>
+                <div class="toggle" id="toggleSunrise" onclick="toggleSetting('showSunriseSunset')"></div>
+            </div>
         </div>
         
-        <div class="settings-bar">
-            <div class="settings-toggle active" id="toggleHome" onclick="toggleSetting('homeCompare')">
-                <span class="toggle-icon"></span>
-                <span>Дом</span>
-            </div>
-            <div class="settings-toggle active" id="toggleWeather" onclick="toggleSetting('weather')">
-                <span class="toggle-icon">🌤️</span>
-                <span>Погода</span>
-            </div>
-            <div class="settings-toggle active" id="toggleSunrise" onclick="toggleSetting('sunrise')">
-                <span class="toggle-icon">🌅</span>
-                <span>Восход</span>
-            </div>
+        <button class="btn" onclick="setHomeCityPrompt()">🏠 Задать домашний город</button>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('home', this)">
+            <div class="nav-icon">🕒</div>
+            <div>Главная</div>
         </div>
-        
-        <div class="search-container">
-            <input type="text" class="search-input" id="searchInput" placeholder="🔍 Поиск города..." autocomplete="off">
+        <div class="nav-item" onclick="switchTab('profile', this)">
+            <div class="nav-icon">👤</div>
+            <div>Профиль</div>
         </div>
-        
-        <div class="results-container" id="results">
-            <div class="loading">
-                <div class="loading-spinner"></div>
-                <p>Загрузка...</p>
-            </div>
+        <div class="nav-item" onclick="switchTab('settings', this)">
+            <div class="nav-icon">⚙️</div>
+            <div>Настройки</div>
         </div>
     </div>
 
     <script>
-        const tg = window.Telegram?.WebApp;
-        let userState = {};
-        let searchTimeout = null;
-        let selectedCities = [];
-        
-        // Инициализация
-        if (tg) {
-            tg.ready();
-            tg.expand();
-            applyTheme();
+        coove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+            el.classList.add('active');
+            
+            if (tabName === 'home') loadCities(document.getElementById('searchInput').value.trim());
+            if (tabName === 'profile') renderProfile();
         }
-        
-        function applyTheme() {
-            if (tg?.themeParams) {
-                document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#ffffff');
-                document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#000000');
-                document.documentElement.style.setProperty('--tg-theme-hint-color', tg.themeParams.hint_color || '#999999');
-                document.documentElement.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#007aff');
-                document.docums.button_text_color || '#ffffff');
-                document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color || '#f2f2f7');
-            }
-        }
-        
-        // Загрузка состояния пользователя
-        async function loadUserState() {
+
+        async function loadState() {
             try {
+                console.log("Loading state...");
                 const params = new URLSearchParams();
-                if (tg?.initData) params.append('initData', tg.initData);
+                if (tg?.initData) {
+                    params.append('initData', tg.initData);
+                    console.log("Using initData");
+                }
                 
-                const response = await fetch(`/api/state?${params}`);
-                if (!response.ok) throw new Error('Failed to load state');
+                const res = await fetch('/api/state?' + params.toString());
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                state = await res.json();
+                console.log("State loaded:", state);
                 
-                userState = await response.json();
-                if (userState.error === 'unauthorized') {
-                    showError('Ошибка авторизации. Перезапустите бота.');
+                if (state.error) {
+                    document.getElementById('citiesList').innerHTML = '<div class="empty">Ошибка: ' + state.error + '. Откройте через бота.</div>';
                     return;
                 }
                 
                 updateSettingsUI();
-                await loadCities();
-            } catch (error) {
-                console.error('Load state error:', error);
-                showError('Ошибка загрузки. Попробуйте позже.');
+                loadCities('');
+            } catch (e) {
+                console.error("Load state error:", e);
+                document.getElementById('citiesList').innerHTML = '<div class="empty">Ошибка сети: ' + e.message + '</div>';
             }
         }
-        
-        // Обновление UI настроек
+
         function updateSettingsUI() {
-            document.getElementById('toggleHome').classList.toggle('active', userState.showHomeComparison !== false);
-            document.getElementById('toggleWeather').classList.toggle('active', userState.showWeather !== false);
-            document.getElementById('toggleSunrise').classList.toggle('active', userState.showSunriseSunset !== false);
+            console.log("Updating settings UI");
+            const btnLang = document.getElementById('btnLang');
+            const btnFormat = document.getElementById('btnFormat');
+            if (btnLang) btnLang.textContent = state.lang === 'ru' ? 'RU' : 'EN';
+            if (btnFormat) btnFormat.textContent = state.timeFormat === '24' ? '24ч' : '12ч';
+            
+            setToggle('toggleHome', state.showHomeComparison);
+            setToggle('toggleWeather', state.showWeather);
+            setToggle('toggleSunrise', state.showSunriseSunset);
         }
-        
-        // Переключение настройки
-        async function toggleSetting(setting) {
-            const toggles = {
-                'homeCompare': 'showHomeComparison',
-                'weather': 'showWeather',
-                'sunrise': 'showSunriseSunset'
-            };
+
+        function setToggle(id, val) {
+            const el = document.getElementById(id);
+            if (el) {
+                if (val) el.classList.add('on');
+                else el.classList.remove('on');
+            }
+        }
+
+        async function toggleSetting(key) {
+            console.log("Toggling setting:", key);
+            const newVal = !state[key];
+            state[key] = newVal;
             
-            const key = toggles[setting];
-            if (!key) return;
-            
-            const newValue = !userState[key];
-            userState[key] = newValue;
-            updateSettingsUI();
+            const toggleId = key === 'showHomeComparison' ? 'toggleHome' : key === 'showWeather' ? 'toggleWeather' : 'toggleSunrise';
+            setToggle(toggleId, newVal);
             
             try {
                 const params = new URLSearchParams();
                 if (tg?.initData) params.append('initData', tg.initData);
                 
-                await fetch(`/api/settings/${key}?value=${newValue}&${params}`, {
-                    method: 'POST'
+                const body = { initData: tg?.initData || '' };
+                if (key === 'showHomeComparison') body.homeCompare = newVal;
+                else if (key === 'showWeather') body.weather = newVal;
+                else if (key === 'showSunriseSunset') body.sunrise = newVal;
+
+                await fetch('/api/settings?' + params.toString(), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
                 });
                 
-                // Обновляем отображение городов
-                if (selectedCities.length > 0) {
-                    renderCities();
-                }
-            } catch (error) {
-                console.error('Toggle error:', error);
-                userState[key] = !newValue;
-                updateSettingsUI();
+                const query = document.getElementById('searchInput').value.trim();
+                if (query) loadCities(query);
+            } catch(e) { 
+                console.error("Toggle error:", e); 
+                state[key] = !newVal;
+                setToggle(toggleId, state[key]);
             }
         }
-        
-        // Загрузка городов (популярные или поиск)
-        async function loadCities(query = '') {
+
+        async function toggleLang() {
+            const newLang = state.lang === 'ru' ? 'en' : 'ru';
+            await saveSettings({ lang: newLang });
+        }
+
+        async function toggleFormat() {
+            const newFormat = state.timeFormat === '24' ? '12' : '24';
+            await saveSettings({ format: newFormat });
+        }
+
+        async function saveSettings(data) {
             try {
                 const params = new URLSearchParams();
-                if (query) params.append('q', query);
                 if (tg?.initData) params.append('initData', tg.initData);
                 
-                const response = await fetch(`/api/cities/search?${params}`);
-                if (!response.ok) throw new Error('Search failed');
-                
-                const cities = await response.json();
-                selectedCities = cities.slice(0, 20);
-                renderCities();
-            } catch (error) {
-                console.error('Load cities error:', error);
-                showError('Ошибка загрузки городов.');
+                await fetch('/api/settings?' + params.toString(), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...data, initData: tg?.initData || ''})
+                });
+                await loadState();
+            } catch(e) { console.error("Save settings error:", e); }
+        }
+
+        async function setHomeCityPrompt() {
+            const city = prompt("Введите название домашнего города (например, Москва):");
+            if (city) {
+                try {
+                    const params = new URLSearchParams();
+                    if (tg?.initData) params.append('initData', tg.initData);
+                    await fetch('/api/home?' + params.toString(), {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ key: city, initData: tg?.initData || '' })
+                    });
+                    await loadState();
+                    alert("Домашний город обновлен!");
+                } catch(e) { alert("Ошибка: " + e.message); }
             }
         }
-        
-        // Рендеринг городов
-        function renderCities() {
-            const results = document.getElementById('results');
-            
-            if (selectedCities.length === 0) {
-                results.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <p>Города не найдены</p>
-                        <p style="margin-top: 8px; font-size: 13px;">Введите название города для поиска</p>
-                    </div>
-                `;
+
+        async function loadCities(query) {
+            const list = document.getElementById('citiesList');
+            if (!query) {
+                list.innerHTML = '<div class="empty">Введите название города для поиска<br><br>💡 Начните вводить, например, "Мос" или "London"</div>';
                 return;
             }
             
-            results.innerHTML = selectedCities.map(city => createCityCard(city)).join('');
-            
-            // Обновляем время для каждого города
-            selectedCities.forEach(city => updateCityInfo(city));
+            list.innerHTML = '<div class="loading">Поиск...</div>';
+            try {
+                const params = new URLSearchParams({ q: query });
+                if (tg?.initData) params.append('initData', tg.initData);
+                
+                const res = await fetch('/api/cities/search?' + params.toString());
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const cities = await res.json();
+                
+                if (cities.length === 0) {
+                    list.innerHTML = '<div class="empty">Ничего не найдено</div>';
+                    return;
+                }
+                
+                list.innerHTML = cities.map(c => renderCityCard(c)).join('');
+                cities.forEach(c => fetchCityTime(c.key));
+            } catch(e) {
+                console.error("Search error:", e);
+                list.innerHTML = '<div class="empty">Ошибка поиска: ' + e.message + '</div>';
+            }
         }
-        
-        // Создание карточки города
-        function createCityCard(city) {
-            const showHome = userState.showHomeComparison !== false && userState.homeCity;
-            const showWeather = userState.showWeather !== false;
-            const showSunrise = userState.showSunriseSunset !== false;
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadCities(e.target.value.trim()), 400);
+        });
+
+        function renderCityCard(c) {
+            let html = `<div class="card" onclick="selectCity('${c.key}')">
+                <div class="card-title">${c.name}</div>
+                <div class="card-subtitle">${c.country || c.timezone || ''}</div>
+                <div class="time-big" id="time-${c.key}">--:--</div>
+                <div class="card-subtitle" id="date-${c.key}">...</div>`;
             
-            let html = `
-                <div class="city-card" onclick="selectCity('${city.key}')">
-                    <div class="city-header">
-                        <div>
-                            <div class="city-name">${city.name}</div>
-                            <div class="city-country">${city.country || city.timezone || ''}</div>
-                        </div>
-                    </div>
-                    <div class="city-time-block">
-                        <div class="city-time" id="time-${city.key}">--:--</div>
-                        <div class="city-date" id="date-${city.key}">Загрузка...</div>
-            `;
-            
-            // Разница с домашним городом
-            if (showHome && userState.homeCity && userState.homeCity.key !== city.key) {
-                html += `
-                    <div class="home-diff" id="diff-${city.key}">
-                        <span></span>
-                        <span>Загрузка...</span>
-                    </div>
-                `;
+            if (state.showHomeComparison && state.homeCity && state.homeCity.key !== c.key) {
+                html += `<div class="diff-badge" id="diff-${c.key}">🏠 Загрузка...</div>`;
             }
-            
-            // Погода
-            if (showWeather) {
-                html += `
-                    <div class="weather-block" id="weather-${city.key}">
-                        <span class="weather-icon">⏳</span>
-                        <div class="weather-info">
-                            <div class="weather-temp">Загрузка...</div>
-                            <div class="weather-desc">Погода</div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Восход/Закат
-            if (showSunrise) {
-                html += `
-                    <div class="sunrise-sunset" id="sun-${city.key}">
-                        <div class="sun-item">
-                            <span>🌅</span>
-                            <span id="sunrise-${city.key}">--:--</span>
-                        </div>
-                        <div class="sun-item">
-                            <span>🌇</span>
-                            <span id="sunset-${city.key}">--:--</span>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            html += `
-                    </div>
-                </div>
-            `;
-            
+            html += `</div>`;
             return html;
         }
-        
-        // Обновление информации о городе
-        async function updateCityInfo(city) {
+
+        async function fetchCityTime(key) {
             try {
-                const params = new URLSearchParams();
+                const params = new URLSearchParams({ key });
                 if (tg?.initData) params.append('initData', tg.initData);
                 
-                const response                if (timeEl && dateEl) {
-                    timeEl.textContent = data.currentTime;
-                    dateEl.textContent = formatDate(data.currentDate, data.dayOfWeek);
-                }
-                
-                // Разница с домом
-                if (userState.showHomeComparison !== false && userState.homeCity && userState.homeCity.key !== city.key) {
-                    await updateTimeDiff(city.key);
-                }
-                
-                // Погода
-                if (userState.showWeather !== false && data.weather) {
-                    updateWeather(city.key, data.weather);
-                }
-                
-                // Восход/Закат
-                if (userState.showSunriseSunset !== false && data.sunrise && data.sunset) {
-                    const sunriseEl = document.getElementById(`sunrise-${city.key}`);
-                    const sunsetEl = document.getElementById(`sunset-${city.key}`);
-                    if (sunriseEl) sunriseEl.textContent = data.sunrise;
-                    if (sunsetEl) sunsetEl.textContent = data.sunset;
-                }
-            } catch (error) {
-                console.error('Update city info error:', error);
-            }
-        }
-        
-        // Обновление разницы во времени
-        async function updateTimeDiff(cityKey) {
-            try {
-                if (!userState.homeCity) return;
-                
-                const params = new URLSearchParams();
-                if (tg?.initData) params.append('initData', tg.initData);
-                
-                const response = await fetch(`/api/diff?city1=${encodeURIComponent(cityKey)}&city2=${encodeURIComponent(userState.homeCity.key)}&${params}`);
-                if (!response.ok) return;
-                
-                const data = await response.json();
+                const res = await fetch('/api/city/info?' + params.toString());
+                if (!res.ok) return;
+                const data = await res.json();
                 if (!data.ok) return;
                 
-                const diffEl = document.getElementById(`diff-${cityKey}`);
-                if (diffEl) {
-                    const sign = data.diff.startsWith('+') ? '' : '';
-                    diffEl.innerHTML = `<span>🏠</span><span>${sign}${data.diff} от дома</span>`;
+                const timeEl = document.getElementById('time-' + key);
+                const dateEl = document.getElementById('date-' + key);
+                if (timeEl) timeEl.textContent = data.currentTime;
+                if (dateEl) dateEl.textContent = data.currentDate + ' (' + data.dayOfWeek + ')';
+                
+                if (state.showHomeComparison && state.homeCity && state.homeCity.key !== key) {
+                    const diffParams = new URLSearchParams({ city1: key, city2: state.homeCity.key });
+                    if (tg?.initData) diffParams.append('initData', tg.initData);
+                    const diffRes = await fetch('/api/diff?' + diffParams.toString());
+                    if (diffRes.ok) {
+                        const diffData = await diffRes.json();
+                        const diffEl = document.getElementById('diff-' + key);
+                        if (diffEl && diffData.ok) {
+                            diffEl.textContent = '🏠 ' + diffData.diff + ' от дома';
+                        }
+                    }
                 }
-            } catch (error) {
-                console.error('Time diff error:', error);
+            } catch(e) {
+                console.error("Fetch city time error:", e);
             }
         }
-        
-        // Обновление погоды
-        function updateWeather(cityKey, weather) {
-            const weatherEl = document.getElementById(`weather-${cityKey}`);
-            if (!weatherEl) return;
+
+        function selectCity(key) {
+            console.log("Selecting city:", key);
+            if (tg) tg.sendData(JSON.stringify({ action: 'select_city', city: key }))н';
             
-            const icon = getWeatherIcon(weather.description);
-            const tempEl = weatherEl.querySelector('.weather-temp');
-            const descEl = weatherEl.querySelector('.weather-desc');
-            
-            if (tempEl) tempEl.textContent = `${Math.round(weather.temp)}°C`;
-            if (descEl) descEl.textContent = weather.description;
+            const favs = state.favorites || [];
+            const favEl = document.getElementById('profileFavorites');
+            if (favEl) favEl.innerHTML = favs.length ? favs.map(f => `<div>• ${f.name}</div>`).join('') : 'Пусто';
+                
+            const rem = state.reminder;
+            const remEl = document.getElementById('profileReminder');
+            if (remEl) remEl.innerHTML = rem ? `⏰ ${rem.city} в ${rem.time}<br>📝 ${rem.text}<br>📅 ${rem.days}` : 'Не установлена';
         }
-        
-        // Иконка погоды
-        function getWeatherIcon(desc) {
-            const d = desc.toLowerCase();
-            if (d.includes('rain')) return '🌧️';
-            if (d.includes('cloud')) return '☁️';
-            if (d.includes('sun') || d.includes('clear')) return '☀️';
-            if (d.includes('snow')) return '❄️';
-            return '🌤️';
-        }
-        
-        // Форматирование даты
-        function formatDate(dateStr, dayOfWeek) {
-            const days = {
-                'MONDAY': 'пн', 'TUESDAY': 'вт', 'WEDNESDAY': 'ср',
-                'THURSD: 'фев', '03': 'мар', '04': 'апр',
-                '05': 'май', '06': 'июн', '07': 'июл', '08': 'авг',
-                '09': 'сен', '10': 'окт', '11': 'ноя', '12': 'дек'
-            };
-            
-            const [year, month, day] = dateStr.split('-');
-            const dayName = days[dayOfWeek] || '';
-            const monthName = months[month] || month;
-            
-            return `${dayName}, ${day} ${monthName} ${year}`;
-        }
-        
-        // Поиск с дебаунсом
-        document.getElementById('searchInput').addEventListener('input', function(e) {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                const query = e.target.value.trim();
-                if (query.length >= 2) {
-                    loadCities(query);
-                } else if (query.length === 0) {
-                    loadCities('');
-                }
-            }, 300);
-        });
-        
-        // Выбор города
-        function selectCity(cityName) {
-            if (tg) {
-                tg.sendData(JSON.stringify({ action: 'select_city', city: cityName }));
-            }
-        }
-        
-        // Показать ошибку
-        function showError(message) {
-            const results = document.getElementById('results');
-            results.innerHTML = `<div class="error-message">${message}</div>`;
-        }
-        
-        // Запуск
-        loadUserState();
-        
-        // Обновление времени каждую минуту
-        setInterval(() => {
-            selectedCities.forEach(city => updateCityInfo(city));
-        }, 60000);
+
+        console.log("Starting loadState...");
+        loadState();
     </script>
 </body>
 </html>

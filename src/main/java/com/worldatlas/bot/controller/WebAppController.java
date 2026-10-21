@@ -134,6 +134,9 @@ public class WebAppController {
         out.put("lang", lang);
         out.put("timeFormat", user.getTimeFormat());
         out.put("homeCity", cityJson(cityService.findCity(user.getHomeCity()), lang));
+        out.put("showHomeComparison", user.isShowHomeComparison());
+        out.put("showWeather", user.getShowWeather());
+        out.put("showSunriseSunset", user.getShowSunriseSunset());
         List<Map<String, Object>> favs = new ArrayList<>();
         for (String f : user.getFavorites()) {
             Map<String, Object> c = cityJson(cityService.findCity(f), lang);
