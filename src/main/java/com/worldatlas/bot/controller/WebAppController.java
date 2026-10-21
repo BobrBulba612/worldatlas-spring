@@ -276,6 +276,47 @@ public class WebAppController {
         return out;
     }
 
+
+    // ========== ПЕРЕКЛЮЧЕНИЕ НАСТРОЕК (для Mini App) ==========
+    @PostMapping("/settings/{key}")
+    public Map<String, Object> toggleSetting(@PathVariable String key,
+                                             @RequestParam Boolean value,
+                                             @RequestBody Map<String, Object> body) {
+        Map<String, Object> out = new HashMap<>();
+        Long chatId = chatIdFromBody(body);
+        if (chatId == null) {
+            // Пробуем получить из параметров запроса
+            String initData = (String) body.get("initData");
+            String devChatId = (String) body.get("devChatId");
+            chatId = resolveChatId(initData, devChatId);
+        }
+        if (chatId == null) { out.put("ok", false); return out; }
+        
+        User user = userService.getUser(chatId);
+        if (user == null) { out.put("ok", false); return out; }
+        
+        switch (key) {
+            case "showHomeComparison":
+                userService.setShowHomeComparison(chatId, value);
+                break;
+            case "showWeather":
+                user.setShowWeather(value);
+                userService.saveUser(user);
+                break;
+            case "showSunriseSunset":
+                user.setShowSunriseSunset(value);
+                userService.saveUser(user);
+                break;
+            default:
+                out.put("ok", false);
+                return out;
+        }
+        
+        out.put("ok", true);
+        out.put("value", value);
+        return out;
+    }
+
     // ========== ПОДДЕРЖКА ==========
     @GetMapping("/support")
     public List<Map<String, Object>> getSupport(@RequestParam(required = false) String initData,
