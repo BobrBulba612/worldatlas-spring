@@ -2413,7 +2413,8 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             editMessageText(chatId, messageId, msg);
             showCardSettings(chatId, messageId, lang, user);
         } else if (data.equals("settings_card_back")) {
-            showSettings(chatId, lang, user);
+            // Редактируем текущее сообщение вместо отправки нового
+            editMessageText(chatId, messageId, "⚙️ <b>Настройки</b>\n\nВыберите раздел:", getSettingsKeyboard(lang, user));
         } else if (data.equals("settings_back")) {
             User updatedUser = userService.getUser(chatId);
             showSettings(chatId, updatedUser.getLanguage(), updatedUser);
@@ -3249,6 +3250,51 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             log.error("Failed to execute after retries: {}", e.getMessage());
             return null;
         }
+    }
+
+
+    private InlineKeyboardMarkup getSettingsKeyboard(String lang, User user) {
+        InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        
+        List<InlineKeyboardButton> row1 = new ArrayList<>();
+        row1.add(createInlineButton("🌐 " + ("en".equals(lang) ? "Language" : "Язык"), "settings_lang"));
+        rows.add(row1);
+        
+        List<InlineKeyboardButton> row2 = new ArrayList<>();
+        row2.add(createInlineButton("🕐 " + ("en".equals(lang) ? "Time format" : "Формат времени"), "settings_timeformat"));
+        rows.add(row2);
+        
+        List<InlineKeyboardButton> rowCard = new ArrayList<>();
+        rowCard.add(createInlineButton("🎨 " + ("en".equals(lang) ? "Card Settings" : "Настройки карточки"), "settings_card"));
+        rows.add(rowCard);
+        
+        List<InlineKeyboardButton> rowHome = new ArrayList<>();
+        rowHome.add(createInlineButton("🏠 " + ("en".equals(lang) ? "Home city" : "Домашний город"), "settings_home"));
+        rows.add(rowHome);
+        
+        markup.setKeyboard(rows);
+        return markup;
+    }
+
+    private void editSettingsMessage(long chatId, int messageId, String lang, User user) {
+        String currentLang = "en".equals(user.getLanguage()) ? "English" : "Русский";
+        String currentTimeFormat = "24".equals(user.getTimeFormat()) ?
+            ("en".equals(lang) ? "24 hours" : "24 часа") :
+            ("en".equals(lang) ? "12 hours (AM/PM)" : "12 часов (AM/PM)");
+        
+        String homeCity = user.getHomeCity() != null ? user.getHomeCity() : ("en".equals(lang) ? "Not set" : "Не установлен");
+        String text = "en".equals(lang) ?
+            "⚙️ <b>Settings</b>\n\n" +
+            "🌐 Language: " + currentLang + "\n" +
+            "🕐 Time format: " + currentTimeFormat + "\n" +
+            "🏠 Home city: " + homeCity :
+            "⚙️ <b>Настройки</b>\n\n" +
+            "🌐 Язык: " + currentLang + "\n" +
+            "🕐 Формат времени: " + currentTimeFormat + "\n" +
+            "🏠 Домашний город: " + homeCity;
+        
+        editMessageText(chatId, messageId, text, getSettingsKeyboard(lang, user));
     }
 
 }
