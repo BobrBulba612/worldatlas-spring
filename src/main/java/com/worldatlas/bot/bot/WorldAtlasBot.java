@@ -2168,7 +2168,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             
             // === СУПЕРСИЛА ДОМАШНЕГО ГОРОДА ===
             String homeCityName = user.getHomeCity();
-            if (homeCityName != null && !homeCityName.equalsIgnoreCase(city.getName())) {
+            if (user.isShowHomeComparison() && homeCityName != null && !homeCityName.equalsIgnoreCase(city.getName())) {
                 City homeCity = cityService.findCity(homeCityName);
                 if (homeCity != null) {
                     String homeDisplayName = cityService.getCityNameLocalized(homeCity, lang);
@@ -2409,55 +2409,45 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             editMessageText(chatId, messageId, msg);
             showCardSettings(chatId, messageId, lang, user);
         } else if (data.equals("settings_card_back")) {
-            // Редактируем текущее сообщение вместо отправки нового
-            editMessageText(chatId, messageId, "⚙️ <b>Настройки</b>\n\nВыберите раздел:", getSettingsKeyboard(lang, user));
-        } else if (data.equals("settings_back")) {
             User updatedUser = userService.getUser(chatId);
-            showSettings(chatId, updatedUser.getLanguage(), updatedUser);
-        } else if (data.equals("show_download")) {
-            showDownloadMenu(chatId, lang);
-        } else if (data.equals("download_windows")) {
-            showWindowsInstructions(chatId, lang);
-        } else if (data.equals("download_android")) {
-            showAndroidInstructions(chatId, lang);
-        } else if (data.equals("download_linux")) {
-            showLinuxInstructions(chatId, lang);
-        } else if (data.equals("remove_fav:start")) {
-            userStates.put(chatId, STATE_WAITING_REMOVE);
-            editMessageText(chatId, messageId, "en".equals(lang) ? "🗑️ Enter city name to remove.\nCancel: /cancel" : "🗑️ Напишите название города для удаления.\nДля отмены: /cancel");
-        } else if (data.equals("admin_broadcast")) {
-            if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.OWNER) {
-                editMessageText(chatId, messageId, "❌ Admins/Owner only");
-                return;
-            }
-        } else if (data.equals("start_lang_ru")) {
-            userService.setLanguage(chatId, "ru");
-            String text_msg = "📢 <b>Подписка на канал</b>\n\nЧтобы продолжить, подпишитесь на наш канал:\n\n👉 <a href=\"https://t.me/WorldAtlasMap\">@WorldTimeMap</a>\n\nПосле подписки нажмите кнопку ниже:";
+            
+            String currentLang = "en".equals(lang) ? "English" : "Русский";
+            String currentTimeFormat = "24".equals(updatedUser.getTimeFormat()) ?
+                ("en".equals(lang) ? "24 hours" : "24 часа") :
+                ("en".equals(lang) ? "12 hours (AM/PM)" : "12 часов (AM/PM)");
+            String homeCity = updatedUser.getHomeCity() != null ? updatedUser.getHomeCity() : ("en".equals(lang) ? "Not set" : "Не установлен");
+            
+            String text = "en".equals(lang) ?
+                "⚙️ <b>Settings</b>\n\n" +
+                "🌐 Language: " + currentLang + "\n" +
+                "🕐 Time format: " + currentTimeFormat + "\n" +
+                "🏠 Home city: " + homeCity :
+                "⚙️ <b>Настройки</b>\n\n" +
+                "🌐 Язык: " + currentLang + "\n" +
+                "🕐 Формат времени: " + currentTimeFormat + "\n" +
+                "🏠 Домашний город: " + homeCity;
+            
             InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
             List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+            
             List<InlineKeyboardButton> row1 = new ArrayList<>();
-            row1.add(createInlineButton("📢 Открыть канал", "https://t.me/WorldAtlasMap"));
+            row1.add(createInlineButton("🌐 " + ("en".equals(lang) ? "Language" : "Язык"), "settings_lang"));
             rows.add(row1);
+            
             List<InlineKeyboardButton> row2 = new ArrayList<>();
-            row2.add(createInlineButton("✅ Проверить подписку", "check_subscription"));
+            row2.add(createInlineButton("🕐 " + ("en".equals(lang) ? "Time format" : "Формат времени"), "settings_timeformat"));
             rows.add(row2);
+            
+            List<InlineKeyboardButton> rowCard = new ArrayList<>();
+            rowCard.add(createInlineButton("🎨 " + ("en".equals(lang) ? "Card Settings" : "Настройки карточки"), "settings_card"));
+            rows.add(rowCard);
+            
+            List<InlineKeyboardButton> rowBack = new ArrayList<>();
+            rowBack.add(createInlineButton("🔙 " + ("en".equals(lang) ? "Back" : "Назад"), "settings_back"));
+            rows.add(rowBack);
+            
             markup.setKeyboard(rows);
-            editMessageText(chatId, messageId, text_msg, markup);
-            userStates.put(chatId, STATE_WAITING_SUBSCRIPTION);
-        } else if (data.equals("start_lang_en")) {
-            userService.setLanguage(chatId, "en");
-            String text_msg = "📢 <b>Subscribe to channel</b>\n\nTo continue, subscribe to our channel:\n\n👉 <a href=\"https://t.me/WorldAtlasMap\">@WorldTimeMap</a>\n\nAfter subscribing, click the button below:";
-            InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-            List<InlineKeyboardButton> row1 = new ArrayList<>();
-            row1.add(createInlineButton("📢 Open channel", "https://t.me/WorldAtlasMap"));
-            rows.add(row1);
-            List<InlineKeyboardButton> row2 = new ArrayList<>();
-            row2.add(createInlineButton("✅ Check subscription", "check_subscription"));
-            rows.add(row2);
-            markup.setKeyboard(rows);
-            editMessageText(chatId, messageId, text_msg, markup);
-            userStates.put(chatId, STATE_WAITING_SUBSCRIPTION);
+            editMessageText(chatId, messageId, text, markup);
         } else if (data.equals("check_subscription")) {
             try {
                 GetChatMember getChatMember = new GetChatMember();
