@@ -2,193 +2,68 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Жесткий запрет кэширования -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>WorldAtlas</title>
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>WorldAtlas Test</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, sans-serif;
-            background: #fff;
-            color: #000;
-            padding: 16px;
-        }
-        body.dark { background: #1c1c1e; color: #fff; }
-        .tab { display: none; }
-        .tab.active { display: block; }
-        .nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #f2f2f7;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
             display: flex;
-            justify-content: space-around;
-            padding: 8px;
-            border-top: 1px solid #e5e5ea;
-        }
-        body.dark .nav { background: #2c2c2e; border-top-color: #38383a; }
-        .nav-item {
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
             text-align: center;
-            font-size: 12px;
-            color: #8e8e93;
-            cursor: pointer;
+            padding: 20px;
         }
-        .nav-item.active { color: #007aff; font-weight: 600; }
-        .nav-icon { font-size: 24px; display: block; margin-bottom: 2px; }
-        .card {
-            background: #f2f2f7;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-        }
-        body.dark .card { background: #2c2c2e; }
-        .card-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-        .time { font-size: 32px; font-weight: 700; color: #007aff; }
-        input {
-            width: 100%;
-            padding: 12px;
-            border-radius: 12px;
-            border: none;
-            background: #f2f2f7;
-            font-size: 16px;
-            margin-bottom: 16px;
-        }
-        body.dark input { background: #2c2c2e; color: #fff; }
+        h1 { font-size: 24px; margin-bottom: 10px; }
+        p { font-size: 16px; opacity: 0.8; }
         .btn {
-            width: 100%;
-            padding: 12px;
-            border-radius: 12px;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background-color: var(--tg-theme-button-color, #007aff);
+            color: var(--tg-theme-button-text-color, #ffffff);
             border: none;
-            background: #007aff;
-            color: #fff;
+            border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 8px;
         }
-        .toggle {
-            width: 50px;
-            height: 30px;
-            background: #ccc;
-            border-radius: 15px;
-            position: relative;
-            cursor: pointer;
-            float: right;
-        }
-        .toggle.on { background: #34c759; }
-        .toggle::after {
-            content: '';
-            position: absolute;
-            width: 26px;
-            height: 26px;
-            background: #fff;
-            border-radius: 50%;
-            top: 2px;
-            left: 2px;
-            transition: 0.3s;
-        }
-        .toggle.on::after { left: 22px; }
-        .row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
-        }
-        body.dark .row { border-bottom-color: rgba(255,255,255,0.1); }
     </style>
 </head>
 <body>
-    <div id="tab-home" class="tab active">
-        <input type="text" id="search" placeholder="Поиск города...">
-        <div id="cities"></div>
-    </div>
-    
-    <div id="tab-profile" class="tab">
-        <div class="card">
-            <div class="card-title">Профиль</div>
-            <div id="profile-info">Загрузка...</div>
-        </div>
-    </div>
-    
-    <div id="tab-settings" class="tab">
-        <div class="card">
-            <div class="card-title">Настройки</div>
-            <div class="row">
-                <span>Язык</span>
-                <button class="btn" id="btn-lang" style="width: auto; padding: 6px 12px;">RU</button>
-            </div>
-            <div class="row">
-                <span>Тема</span>
-                <button class="btn" id="btn-theme" style="width: auto; padding: 6px 12px;">Светлая</button>
-            </div>
-        </div>
-    </div>
-    
-    <div class="nav">
-        <div class="nav-item active" data-tab="home">
-            <span class="nav-icon">🕒</span>
-            <span>Главная</span>
-        </div>
-        <div class="nav-item" data-tab="profile">
-            <span class="nav-icon">👤</span>
-            <span>Профиль</span>
-        </div>
-        <div class="nav-item" data-tab="settings">
-            <span class="nav-icon">⚙️</span>
-            <span>Настройки</span>
-        </div>
-    </div>
+    <h1>✅ Мини-приложение работает!</h1>
+    <p id="status">Проверка подключения...</p>
+    <button class="btn" onclick="Telegram.WebApp.close()">Закрыть</button>
 
     <script>
-        console.log('App started');
-        const tg = window.Telegram?.WebApp;
-        let state = {};
-        let theme = 'light';
+        console.log("Script started");
+        const tg = window.Telegram.WebApp;
         
-        if (tg) {
-            tg.ready();
-            tg.expand();
+        // Сообщаем Telegram, что приложение готово
+        tg.ready();
+        tg.expand(); // Разворачиваем на весь экран
+        
+        // Пытаемся получить данные пользователя
+        const user = tg.initDataUnsafe?.user;
+        const statusEl = document.getElementById('status');
+        
+        if (user) {
+            statusEl.innerText = `Привет, ${user.first_name}! ID: ${user.id}`;
+            statusEl.style.color = '#34c759'; // Зеленый цвет
+            console.log("User data received:", user);
+        } else {
+            statusEl.innerText = "⚠️ Не удалось получить данные Telegram. Откройте через бота.";
+            statusEl.style.color = '#ff3b30'; // Красный цвет
+            console.log("No user data in initDataUnsafe");
         }
-        
-        // Навигация
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const tab = this.dataset.tab;
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.getElementById('tab-' + tab).classList.add('active');
-                this.classList.add('active');
-                console.log('Switched to:', tab);
-            });
-        });
-        
-        // Тема
-        document.getElementById('btn-theme').addEventListener('click', function() {
-            theme = theme === 'light' ? 'dark' : 'light';
-            document.body.classList.toggle('dark', theme === 'dark');
-            this.textContent = theme === 'light' ? 'Светлая' : 'Тёмная';
-            console.log('Theme:', theme);
-        });
-        
-        // Язык
-        document.getElementById('btn-lang').addEventListener('click', function() {
-            console.log('Lang clicked');
-            alert('Смена языка будет добавлена позже');
-        });
-        
-        // Загрузка
-        async function load() {
-            try {
-                console.log('Loadi        } catch(e) {
-                console.error('Error:', e);
-                document.getElementById('profile-info').innerHTML = 'Ошибка: ' + e.message;
-            }
-        }
-        
-        load();
     </script>
 </body>
 </html>

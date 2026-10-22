@@ -219,29 +219,25 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             String aboutText = "en".equals(lang) ?
                 "🤖 <b>About WorldAtlas Bot</b>\n\n" +
                 "👨‍💻 <b>Creator:</b> @BobrArbuz\n\n" +
-                "🌐 <b>Data Sources:</b>\n" +
-                "• 🌤️ Weather & Geocoding: OpenWeatherMap API\n" +
-                "• 🕐 Timezones: TimeAPI.io / Java Timezone DB\n" +
-                "• 💬 Interface: Telegram Bot API\n\n" +
-                "⚙️ <b>Tech Stack:</b>\n" +
-                "• Java 21 + Spring Boot\n" +
-                "• PostgreSQL (Neon)\n" +
-                "• Caffeine Cache\n" +
-                "• Sentry (error monitoring)\n" +
-                "• Hosting: Render\n\n" +
+                "📅 <b>History & Milestones:</b>\n" +
+                "• 🚀 Bot development started: May 15, 2026\n" +
+                "• 📱 Mini App launched: August 26, 2026\n" +
+                "• ☁️ Migrated to Render: September 5, 2026\n" +
+                "• 🌍 First city database added: October 13, 2026\n" +
+                "• 🌐 Weather & Cities website: October 16, 2026\n\n" +
+                "🌐 <b>Data Sources:</b> OpenWeatherMap, TimeAPI.io\n" +
+                "⚙️ <b>Tech Stack:</b> Java 21, Spring Boot, PostgreSQL, Telegram API\n\n" +
                 "💡 Questions? Use /support!" :
                 "🤖 <b>О боте WorldAtlas</b>\n\n" +
                 "👨‍💻 <b>Создатель:</b> @BobrArbuz\n\n" +
-                "🌐 <b>Источники данных:</b>\n" +
-                "• 🌤️ Погода и поиск: OpenWeatherMap API\n" +
-                "• 🕐 Часовые пояса: TimeAPI.io / Java Timezone DB\n" +
-                "• 💬 Интерфейс: Telegram Bot API\n\n" +
-                "⚙️ <b>Технологии:</b>\n" +
-                "• Java 21 + Spring Boot\n" +
-                "• PostgreSQL (Neon)\n" +
-                "• Caffeine Cache\n" +
-                "• Sentry (мониторинг ошибок)\n" +
-                "• Хостинг: Render\n\n" +
+                "📅 <b>История и ключевые даты:</b>\n" +
+                "• 🚀 Начало разработки бота: 15 мая 2026\n" +
+                "• 📱 Запуск Мини-приложения: 26 августа 2026\n" +
+                "• ☁️ Переезд на Render: 5 сентября 2026\n" +
+                "• 🌍 Добавлена первая база городов: 13 октября 2026\n" +
+                "• 🌐 Сайт с городами и погодой: 16 октября 2026\n\n" +
+                "🌐 <b>Источники данных:</b> OpenWeatherMap, TimeAPI.io\n" +
+                "⚙️ <b>Технологии:</b> Java 21, Spring Boot, PostgreSQL, Telegram API\n\n" +
                 "💡 Вопросы? Пишите /support!";
             sendMsg(chatId, aboutText);
             return;
@@ -291,7 +287,7 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                 java.util.Map<String, Object> payload = new java.util.HashMap<>();
                 payload.put("chat_id", chatId);
                 payload.put("title", "en".equals(lang) ? "Support WorldAtlas Bot ☕" : "Поддержать WorldAtlas Bot ☕");
-                payload.put("description", "en".equals(lang) ? "Help keep the bot running!" : "Помогите боту работать стабильно!");
+                payload.put("description", "en".equals(lang) ? "Help keep the bot running!\n\n💡 Type /donate 10 (where 10 is the amount in stars)" : "Помогите боту работать стабильно!\n\n💡 Напишите /donate 10 (где 10 — сумма в звёздах)");
                 payload.put("payload", "donate_" + chatId + "_" + System.currentTimeMillis());
                 payload.put("currency", "XTR");
                 payload.put("provider_token", "");
