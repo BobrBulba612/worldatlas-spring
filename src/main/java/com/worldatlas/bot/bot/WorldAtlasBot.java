@@ -2168,7 +2168,11 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             
             // === СУПЕРСИЛА ДОМАШНЕГО ГОРОДА ===
             String homeCityName = user.getHomeCity();
+            log.info("🏠 HOME CITY DEBUG: showHomeComparison={}, homeCityName={}, currentCity={}", 
+                user.isShowHomeComparison(), homeCityName, city.getName());
+            
             if (user.isShowHomeComparison() && homeCityName != null && !homeCityName.equalsIgnoreCase(city.getName())) {
+                log.info("✅ Home city conditions met, searching for home city: {}", homeCityName);
                 City homeCity = cityService.findCity(homeCityName);
                 if (homeCity != null) {
                     String homeDisplayName = cityService.getCityNameLocalized(homeCity, lang);
