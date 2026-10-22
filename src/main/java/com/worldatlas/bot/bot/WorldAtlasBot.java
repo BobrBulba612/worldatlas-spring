@@ -2162,8 +2162,14 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
             return;
         }
 
+        System.out.println("🔍 SEARCHING CITY: " + text);
         City city = cityService.findCity(text);
+        System.out.println("🔍 CITY FOUND: " + (city != null ? city.getName() : "null"));
+        
         if (city != null) {
+            System.out.println("🏠 CHECKING HOME CITY: showHomeComparison=" + user.isShowHomeComparison() + 
+                             ", homeCityName=" + user.getHomeCity());
+            
             String baseMessage = cityService.getCityInfoWithWeather(city, lang, user.getTimeFormat(), user);
             
             // === СУПЕРСИЛА ДОМАШНЕГО ГОРОДА ===
@@ -2190,7 +2196,12 @@ public class WorldAtlasBot extends TelegramLongPollingBot {
                         "⏰ Разница: <b>" + diffStr + "</b>";
                     
                     baseMessage += homeBlock;
+                    System.out.println("✅ HOME BLOCK ADDED!");
+                } else {
+                    System.out.println("❌ Home city not found in database");
                 }
+            } else {
+                System.out.println("❌ Home city conditions not met");
             }
             
             sendMsg(chatId, baseMessage, getCityActionsKeyboard(city.getName(), lang));
